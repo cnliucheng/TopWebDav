@@ -2,11 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 )
 
-// Config is persisted as config.json next to the binary working directory.
+const defaultListen = "127.0.0.1:8080"
+
+// Config is written to cfgPath (default ./config.json relative to working directory).
 type Config struct {
 	Listen       string `json:"listen"`
 	DataDir      string `json:"data_dir"`
@@ -21,13 +24,16 @@ func LoadOrCreate(cfgPath, defaultDataDir string) (*Config, error) {
 		if err := json.Unmarshal(b, &c); err != nil {
 			return nil, err
 		}
+		if c.Username == "" || c.PasswordHash == "" {
+			return nil, fmt.Errorf("config %s: missing username or password_hash", cfgPath)
+		}
 		if c.Listen == "" {
-			c.Listen = "127.0.0.1:8080"
+			c.Listen = defaultListen
 		}
 		if c.DataDir == "" {
 			c.DataDir = defaultDataDir
 		}
-		if err := os.MkdirAll(c.DataDir, 0o755); err != nil {
+		if err := os.MkdirAll(c.DataDir, 0o700); err != nil {
 			return nil, err
 		}
 		return &c, nil
@@ -40,12 +46,12 @@ func LoadOrCreate(cfgPath, defaultDataDir string) (*Config, error) {
 		return nil, err
 	}
 	c := &Config{
-		Listen:       "127.0.0.1:8080",
+		Listen:       defaultListen,
 		DataDir:      defaultDataDir,
 		Username:     "admin",
 		PasswordHash: hash,
 	}
-	if err := os.MkdirAll(c.DataDir, 0o755); err != nil {
+	if err := os.MkdirAll(c.DataDir, 0o700); err != nil {
 		return nil, err
 	}
 	if err := c.Save(cfgPath); err != nil {
@@ -63,5 +69,14 @@ func (c *Config) Save(cfgPath string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(cfgPath, b, 0o600)
+	tmp := cfgPath + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, cfgPath); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return os.Chmod(cfgPath, 0o600)
 }

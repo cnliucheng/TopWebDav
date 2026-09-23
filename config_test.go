@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -70,5 +71,86 @@ func TestConfigSave(t *testing.T) {
 	}
 	if !CheckPassword(cfg2.PasswordHash, "secret") {
 		t.Fatal("saved password should verify")
+	}
+}
+
+func TestLoadOrCreateCorruptJSON(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(cfgPath, []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadOrCreate(cfgPath, filepath.Join(dir, "data")); err == nil {
+		t.Fatal("expected error for corrupt JSON")
+	}
+}
+
+func TestLoadOrCreateFillsDefaults(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+	dataDir := filepath.Join(dir, "data")
+	hash, err := HashPassword("secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(&Config{Username: "admin", PasswordHash: hash})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfgPath, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadOrCreate(cfgPath, dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Listen != "127.0.0.1:8080" {
+		t.Fatalf("listen = %q, want 127.0.0.1:8080", cfg.Listen)
+	}
+	if cfg.DataDir != dataDir {
+		t.Fatalf("data dir = %q, want %q", cfg.DataDir, dataDir)
+	}
+	if fi, err := os.Stat(dataDir); err != nil || !fi.IsDir() {
+		t.Fatalf("data dir not created: %v", err)
+	}
+}
+
+func TestSaveFileMode(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+	cfg, err := LoadOrCreate(cfgPath, filepath.Join(dir, "data"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Save(cfgPath); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o600 {
+		t.Fatalf("config mode = %v, want 0600", fi.Mode().Perm())
+	}
+}
+
+func TestLoadOrCreateRejectsEmptyCredentials(t *testing.T) {
+	dir := t.TempDir()
+	dataDir := filepath.Join(dir, "data")
+
+	cfgPath := filepath.Join(dir, "nouser.json")
+	if err := os.WriteFile(cfgPath, []byte(`{"password_hash":"x"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadOrCreate(cfgPath, dataDir); err == nil {
+		t.Fatal("expected error for missing username")
+	}
+
+	cfgPath = filepath.Join(dir, "nopass.json")
+	if err := os.WriteFile(cfgPath, []byte(`{"username":"admin"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadOrCreate(cfgPath, dataDir); err == nil {
+		t.Fatal("expected error for missing password_hash")
 	}
 }

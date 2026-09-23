@@ -5,7 +5,10 @@ import "golang.org/x/crypto/bcrypt"
 // HashPassword returns a bcrypt hash of the password.
 func HashPassword(pw string) (string, error) {
 	b, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
-	return string(b), err
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
 
 // CheckPassword reports whether pw matches the bcrypt hash.
