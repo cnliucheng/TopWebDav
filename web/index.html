@@ -1,1 +1,61 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>TopWebDav</title><link rel="stylesheet" href="style.css"></head><body><p>TopWebDav</p><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TopWebDav</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <strong>TopWebDav</strong>
+    <nav>
+      <span id="pathLabel">/</span>
+      <button id="btnUp" type="button">上级</button>
+      <button id="btnRefresh" type="button">刷新</button>
+      <button id="btnUpload" type="button">上传</button>
+      <button id="btnMkdir" type="button">新建文件夹</button>
+      <button id="btnCreate" type="button">新建文件</button>
+      <button id="btnPassword" type="button">改密码</button>
+      <button id="btnLogout" type="button">退出</button>
+    </nav>
+  </header>
+  <div id="error" hidden></div>
+  <main>
+    <table id="listing">
+      <thead>
+        <tr><th>名称</th><th>大小</th><th>修改时间</th><th>操作</th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </main>
+  <input id="fileInput" type="file" multiple hidden />
+  <dialog id="dlgEdit">
+    <h2 id="editTitle">编辑</h2>
+    <textarea id="editBody" rows="18" cols="72"></textarea>
+    <p>
+      <button id="editSave" type="button">保存</button>
+      <button id="editCancel" type="button">取消</button>
+    </p>
+  </dialog>
+  <dialog id="dlgPrompt">
+    <h2 id="promptTitle">输入</h2>
+    <input id="promptValue" type="text" />
+    <input id="promptSecret" type="password" hidden />
+    <p>
+      <button id="promptOk" type="button">确定</button>
+      <button id="promptCancel" type="button">取消</button>
+    </p>
+  </dialog>
+  <dialog id="dlgPassword">
+    <h2>修改密码</h2>
+    <p><label>旧密码 <input id="oldPw" type="password" /></label></p>
+    <p><label>新密码 <input id="newPw" type="password" /></label></p>
+    <p>
+      <button id="pwSave" type="button">保存</button>
+      <button id="pwCancel" type="button">取消</button>
+    </p>
+  </dialog>
+  <script src="app.js"></script>
+</body>
+</html>
