@@ -1,0 +1,15 @@
+[Unit]
+Description=TopWebDav
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/topwebdav
+ExecStart=/opt/topwebdav/topwebdav -config /opt/topwebdav/config.json
+Restart=on-failure
+# Adjust user to the owner of /opt/topwebdav/data
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target
