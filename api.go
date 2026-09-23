@@ -1,12 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
+	"mime"
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -187,6 +192,157 @@ func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := os.Rename(src, dst); err != nil {
 		writeErr(w, http.StatusInternalServerError, "rename failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+const maxEditBytes = 1 << 20 // 1 MiB
+
+func isTextish(name string, sample []byte) bool {
+	ext := strings.ToLower(filepath.Ext(name))
+	switch ext {
+	case ".txt", ".md", ".json", ".yaml", ".yml", ".toml", ".conf", ".cfg",
+		".ini", ".log", ".csv", ".xml", ".html", ".css", ".js", ".go", ".sh",
+		".env", ".sql":
+		return true
+	}
+	if mt := mime.TypeByExtension(ext); strings.HasPrefix(mt, "text/") {
+		return true
+	}
+	return len(sample) > 0 && !bytes.ContainsRune(sample, 0)
+}
+
+func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	dirRel := r.URL.Query().Get("path")
+	if dirRel == "" {
+		dirRel = "/"
+	}
+	dirFull, err := ResolveUnder(s.root, dirRel)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "bad path")
+		return
+	}
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad multipart")
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "missing file field")
+		return
+	}
+	defer file.Close()
+	name := filepath.Base(header.Filename)
+	if err := ValidName(name); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad name")
+		return
+	}
+	dst := filepath.Join(dirFull, name)
+	if _, err := os.Stat(dst); err == nil {
+		writeErr(w, http.StatusConflict, "already exists")
+		return
+	}
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "create failed")
+		return
+	}
+	defer out.Close()
+	_ = out.Chmod(0o600)
+	if _, err := io.Copy(out, file); err != nil {
+		writeErr(w, http.StatusInternalServerError, "write failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	full, err := ResolveUnder(s.root, r.URL.Query().Get("path"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "bad path")
+		return
+	}
+	fi, err := os.Stat(full)
+	if err != nil || fi.IsDir() {
+		writeErr(w, http.StatusNotFound, "not found")
+		return
+	}
+	w.Header().Set("Content-Disposition", `attachment; filename="`+fi.Name()+`"`)
+	http.ServeFile(w, r, full)
+}
+
+func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	full, err := ResolveUnder(s.root, r.URL.Query().Get("path"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "bad path")
+		return
+	}
+	fi, err := os.Stat(full)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "not found")
+		return
+	}
+	if fi.IsDir() {
+		writeErr(w, http.StatusBadRequest, "is a directory")
+		return
+	}
+	if fi.Size() > maxEditBytes {
+		writeErr(w, http.StatusRequestEntityTooLarge, "file too large to edit")
+		return
+	}
+	sample, err := os.ReadFile(full)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "read failed")
+		return
+	}
+	if !isTextish(filepath.Base(full), sample) {
+		writeErr(w, http.StatusUnsupportedMediaType, "not a text file")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"content": string(sample)})
+}
+
+func (s *Server) handleWrite(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var body struct {
+		Path    string `json:"path"`
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad json")
+		return
+	}
+	if len(body.Content) > maxEditBytes {
+		writeErr(w, http.StatusRequestEntityTooLarge, "content too large")
+		return
+	}
+	full, err := ResolveUnder(s.root, body.Path)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "bad path")
+		return
+	}
+	if !isTextish(filepath.Base(full), []byte(body.Content)) {
+		writeErr(w, http.StatusUnsupportedMediaType, "not a text file")
+		return
+	}
+	if err := os.WriteFile(full, []byte(body.Content), 0o600); err != nil {
+		writeErr(w, http.StatusInternalServerError, "write failed")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
