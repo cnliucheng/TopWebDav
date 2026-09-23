@@ -75,8 +75,10 @@ func (s *Server) handlePassword(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "hash failed")
 		return
 	}
+	prev := s.cfg.PasswordHash
 	s.cfg.PasswordHash = hash
 	if err := s.cfg.Save(s.cfgPath); err != nil {
+		s.cfg.PasswordHash = prev
 		writeErr(w, http.StatusInternalServerError, "save config failed")
 		return
 	}
