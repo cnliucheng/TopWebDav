@@ -34,6 +34,13 @@ func TestLoadOrCreateFirstRun(t *testing.T) {
 	if fi, err := os.Stat(dataDir); err != nil || !fi.IsDir() {
 		t.Fatalf("data dir not created: %v", err)
 	}
+	fi, err := os.Stat(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o700 {
+		t.Fatalf("data dir mode = %v, want 0700", fi.Mode().Perm())
+	}
 
 	// Second load must not rotate the password hash.
 	cfg2, err := LoadOrCreate(cfgPath, dataDir)
@@ -113,6 +120,13 @@ func TestLoadOrCreateFillsDefaults(t *testing.T) {
 	if fi, err := os.Stat(dataDir); err != nil || !fi.IsDir() {
 		t.Fatalf("data dir not created: %v", err)
 	}
+	fi, err := os.Stat(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o700 {
+		t.Fatalf("data dir mode = %v, want 0700", fi.Mode().Perm())
+	}
 }
 
 func TestSaveFileMode(t *testing.T) {
@@ -120,6 +134,9 @@ func TestSaveFileMode(t *testing.T) {
 	cfgPath := filepath.Join(dir, "config.json")
 	cfg, err := LoadOrCreate(cfgPath, filepath.Join(dir, "data"))
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(cfgPath, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := cfg.Save(cfgPath); err != nil {
@@ -131,6 +148,9 @@ func TestSaveFileMode(t *testing.T) {
 	}
 	if fi.Mode().Perm() != 0o600 {
 		t.Fatalf("config mode = %v, want 0600", fi.Mode().Perm())
+	}
+	if _, err := os.Stat(cfgPath + ".tmp"); !os.IsNotExist(err) {
+		t.Fatalf("tmp file should not exist after Save, err=%v", err)
 	}
 }
 
