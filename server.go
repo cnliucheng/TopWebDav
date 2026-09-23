@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"strings"
 	"sync"
 )
 
@@ -38,9 +39,28 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("DELETE /api/delete", s.handleDelete)
 	mux.HandleFunc("POST /api/rename", s.handleRename)
 	mux.HandleFunc("POST /api/password", s.handlePassword)
+	// Unmatched /api/* must stay JSON — FileServer returns text/plain 404.
+	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+		writeErr(w, http.StatusNotFound, "api not found")
+	})
 	mux.Handle("/dav/", s.davHandler())
 	mux.Handle("/", http.FileServer(http.FS(mustWebFS())))
-	return s.requireAuth(mux)
+	return s.requireAuth(stripAPITrailingSlash(mux))
+}
+
+// stripAPITrailingSlash turns /api/list/ into /api/list so proxies and
+// users that add a slash still hit the handler instead of FileServer 404.
+func stripAPITrailingSlash(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := r.URL.Path
+		if strings.HasPrefix(p, "/api/") && strings.HasSuffix(p, "/") && p != "/api/" {
+			r2 := r.Clone(r.Context())
+			r2.URL.Path = strings.TrimRight(p, "/")
+			next.ServeHTTP(w, r2)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func mustWebFS() fs.FS {

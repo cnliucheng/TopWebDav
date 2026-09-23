@@ -116,6 +116,7 @@ function promptPassword(title, initial) {
 }
 
 async function api(pathname, opts) {
+  // Relative "api/..." (no leading slash) so reverse-proxy subpaths work.
   const options = Object.assign({}, opts || {});
   const headers = Object.assign({}, options.headers || {});
   if (state.auth) headers.Authorization = "Basic " + state.auth;
@@ -163,7 +164,7 @@ async function ensureLogin() {
     state.user = user;
     state.auth = toBasic(user, pass);
     try {
-      await api("/api/list?path=" + encodeURIComponent("/"));
+      await api("api/list?path=" + encodeURIComponent("/"));
       showError("");
       return true;
     } catch (e) {
@@ -212,7 +213,7 @@ function fmtTime(t) {
 
 async function load() {
   $("pathLabel").textContent = state.cur;
-  const items = await api("/api/list?path=" + encodeURIComponent(state.cur));
+  const items = await api("api/list?path=" + encodeURIComponent(state.cur));
   const list = Array.isArray(items) ? items.slice() : [];
   list.sort((a, b) => {
     if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
@@ -275,7 +276,7 @@ function renderRow(it) {
 
 async function download(path, name) {
   showError("");
-  const res = await api("/api/download?path=" + encodeURIComponent(path));
+  const res = await api("api/download?path=" + encodeURIComponent(path));
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -290,14 +291,14 @@ async function download(path, name) {
 function openEdit(path) {
   showError("");
   return (async () => {
-    const data = await api("/api/read?path=" + encodeURIComponent(path));
+    const data = await api("api/read?path=" + encodeURIComponent(path));
     $("editTitle").textContent = "编辑 " + path;
     $("editBody").value = (data && data.content) || "";
     const dlg = $("dlgEdit");
     await new Promise((resolve) => {
       const onSave = async () => {
         try {
-          await api("/api/write", {
+          await api("api/write", {
             method: "POST",
             body: { path: path, content: $("editBody").value },
           });
@@ -330,7 +331,7 @@ async function doMkdir() {
   showError("");
   const name = await promptText("新建文件夹 — 名称");
   if (name === null || name === "") return;
-  await api("/api/mkdir", {
+  await api("api/mkdir", {
     method: "POST",
     body: { path: joinPath(state.cur, name) },
   });
@@ -342,7 +343,7 @@ async function doCreate() {
   const name = await promptText("新建文件 — 名称");
   if (name === null || name === "") return;
   const path = joinPath(state.cur, name);
-  await api("/api/create", {
+  await api("api/create", {
     method: "POST",
     body: { path: path, content: "" },
   });
@@ -354,7 +355,7 @@ async function doRename(it) {
   showError("");
   const name = await promptText("重命名", it.name);
   if (name === null || name === "" || name === it.name) return;
-  await api("/api/rename", {
+  await api("api/rename", {
     method: "POST",
     body: { from: it.path, to: joinPath(state.cur, name) },
   });
@@ -364,7 +365,7 @@ async function doRename(it) {
 async function doDelete(it) {
   showError("");
   if (!confirm("确定删除 " + it.name + "？")) return;
-  await api("/api/delete?path=" + encodeURIComponent(it.path), {
+  await api("api/delete?path=" + encodeURIComponent(it.path), {
     method: "DELETE",
   });
   await load();
@@ -383,7 +384,7 @@ async function doUpload() {
   for (const file of files) {
     const fd = new FormData();
     fd.append("file", file, file.name);
-    await api("/api/upload?path=" + encodeURIComponent(state.cur), {
+    await api("api/upload?path=" + encodeURIComponent(state.cur), {
       method: "POST",
       body: fd,
     });
@@ -405,7 +406,7 @@ async function doChangePassword() {
         return;
       }
       try {
-        await api("/api/password", {
+        await api("api/password", {
           method: "POST",
           body: { old_password: oldPw, new_password: newPw },
         });
