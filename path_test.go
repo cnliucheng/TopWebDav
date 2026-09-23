@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -46,7 +47,11 @@ func TestResolveUnder(t *testing.T) {
 	if p == "" {
 		t.Fatal("empty resolve")
 	}
-	rel, err := filepath.Rel(root, p)
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rel, err := filepath.Rel(realRoot, p)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		t.Fatalf("resolved outside root: %q (rel=%q err=%v)", p, rel, err)
 	}
@@ -56,6 +61,13 @@ func TestResolveUnder(t *testing.T) {
 	// Filesystem root must still accept children (HasPrefix(root+sep) would fail here).
 	if _, err := ResolveUnder(string(filepath.Separator), "/etc/passwd"); err != nil {
 		t.Fatalf("ResolveUnder(/): %v", err)
+	}
+	// A symlink under root that points outside must not allow escape.
+	if err := os.Symlink("/etc", filepath.Join(root, "link")); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+	if _, err := ResolveUnder(root, "/link/passwd"); err == nil {
+		t.Fatal("symlink escape should fail")
 	}
 }
 
@@ -74,5 +86,17 @@ func TestValidName(t *testing.T) {
 	}
 	if err := ValidName("a\x00b"); err == nil {
 		t.Fatal("null should fail")
+	}
+	if err := ValidName(`a"b`); err == nil {
+		t.Fatal("double quote should fail")
+	}
+	if err := ValidName(`a;b`); err == nil {
+		t.Fatal("semicolon should fail")
+	}
+	if err := ValidName("a\nb"); err == nil {
+		t.Fatal("newline should fail")
+	}
+	if err := ValidName("a\x7fb"); err == nil {
+		t.Fatal("DEL should fail")
 	}
 }

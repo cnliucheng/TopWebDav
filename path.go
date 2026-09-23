@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -40,6 +41,37 @@ func SanitizePath(p string) (string, error) {
 	return clean, nil
 }
 
+// realPathUnder resolves full's deepest existing prefix via EvalSymlinks,
+// re-appends any missing tail without allowing "..", and requires the result
+// to stay under realRoot.
+func realPathUnder(realRoot, full string) (string, error) {
+	existing := full
+	var tail []string
+	for {
+		if _, err := os.Lstat(existing); err == nil {
+			break
+		}
+		tail = append([]string{filepath.Base(existing)}, tail...)
+		parent := filepath.Dir(existing)
+		if parent == existing {
+			break
+		}
+		existing = parent
+	}
+	real, err := filepath.EvalSymlinks(existing)
+	if err != nil {
+		return "", ErrBadPath
+	}
+	joined := filepath.Join(append([]string{real}, tail...)...)
+	// Containment via Rel handles filesystem roots ("/", "C:\\") correctly;
+	// a plain HasPrefix(root+sep) false-rejects when rootAbs is a volume root.
+	rel, err := filepath.Rel(realRoot, joined)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", ErrBadPath
+	}
+	return joined, nil
+}
+
 // ResolveUnder maps a sanitized path to an absolute OS path under root.
 func ResolveUnder(root, p string) (string, error) {
 	clean, err := SanitizePath(p)
@@ -52,13 +84,15 @@ func ResolveUnder(root, p string) (string, error) {
 	}
 	relPath := strings.TrimPrefix(clean, "/")
 	full := filepath.Join(rootAbs, filepath.FromSlash(relPath))
-	// Containment via Rel handles filesystem roots ("/", "C:\\") correctly;
-	// a plain HasPrefix(root+sep) false-rejects when rootAbs is a volume root.
 	rel, err := filepath.Rel(rootAbs, full)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", ErrBadPath
 	}
-	return full, nil
+	realRoot, err := filepath.EvalSymlinks(rootAbs)
+	if err != nil {
+		return "", err
+	}
+	return realPathUnder(realRoot, full)
 }
 
 // ValidName checks a single path segment (file or folder name).
@@ -66,8 +100,13 @@ func ValidName(name string) error {
 	if name == "" || name == "." || name == ".." {
 		return ErrBadPath
 	}
-	if strings.ContainsAny(name, "/\\\x00") {
+	if strings.ContainsAny(name, "/\\\";") {
 		return ErrBadPath
+	}
+	for _, r := range name {
+		if r < 0x20 || r == 0x7f {
+			return ErrBadPath
+		}
 	}
 	return nil
 }

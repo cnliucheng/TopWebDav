@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"mime/multipart"
 	"net/http"
@@ -139,5 +140,90 @@ func TestUploadDownloadReadWrite(t *testing.T) {
 	s.handleRead(rec, req)
 	if rec.Code != http.StatusUnsupportedMediaType {
 		t.Fatalf("nontext read code=%d want 415", rec.Code)
+	}
+}
+
+func TestRESTErrorContract(t *testing.T) {
+	s := testServer(t)
+
+	// create existing → 409
+	req := httptest.NewRequest(http.MethodPost, "/api/create", strings.NewReader(`{"path":"/dup.txt","content":"a"}`))
+	rec := httptest.NewRecorder()
+	s.handleCreate(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/create", strings.NewReader(`{"path":"/dup.txt","content":"b"}`))
+	rec = httptest.NewRecorder()
+	s.handleCreate(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("create existing code=%d want 409", rec.Code)
+	}
+
+	// delete missing → 404
+	req = httptest.NewRequest(http.MethodDelete, "/api/delete?path=/nope.txt", nil)
+	rec = httptest.NewRecorder()
+	s.handleDelete(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("delete missing code=%d want 404", rec.Code)
+	}
+
+	// delete root → 400
+	req = httptest.NewRequest(http.MethodDelete, "/api/delete?path=/", nil)
+	rec = httptest.NewRecorder()
+	s.handleDelete(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("delete root code=%d want 400", rec.Code)
+	}
+
+	// rename missing → 404
+	req = httptest.NewRequest(http.MethodPost, "/api/rename", strings.NewReader(`{"from":"/ghost.txt","to":"/ghost2.txt"}`))
+	rec = httptest.NewRecorder()
+	s.handleRename(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("rename missing code=%d want 404", rec.Code)
+	}
+
+	// rename onto existing → 409
+	req = httptest.NewRequest(http.MethodPost, "/api/create", strings.NewReader(`{"path":"/tgt.txt","content":"t"}`))
+	rec = httptest.NewRecorder()
+	s.handleCreate(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create tgt code=%d", rec.Code)
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/rename", strings.NewReader(`{"from":"/dup.txt","to":"/tgt.txt"}`))
+	rec = httptest.NewRecorder()
+	s.handleRename(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("rename onto existing code=%d want 409", rec.Code)
+	}
+
+	// read >1MiB file → 413
+	big := bytes.Repeat([]byte("a"), maxEditBytes+10)
+	if err := os.WriteFile(filepath.Join(s.root, "big.txt"), big, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/read?path=/big.txt", nil)
+	rec = httptest.NewRecorder()
+	s.handleRead(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("read big code=%d want 413", rec.Code)
+	}
+
+	// write >1MiB content → 413
+	payload := `{"path":"/note.txt","content":"` + strings.Repeat("a", maxEditBytes+10) + `"}`
+	req = httptest.NewRequest(http.MethodPost, "/api/write", strings.NewReader(payload))
+	rec = httptest.NewRecorder()
+	s.handleWrite(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("write big code=%d want 413", rec.Code)
+	}
+
+	// ValidName reject: create path with quote in name → 400
+	req = httptest.NewRequest(http.MethodPost, "/api/create", strings.NewReader(`{"path":"/bad\"name.txt","content":"x"}`))
+	rec = httptest.NewRecorder()
+	s.handleCreate(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("create quote name code=%d want 400", rec.Code)
 	}
 }

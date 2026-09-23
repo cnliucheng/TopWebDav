@@ -85,6 +85,7 @@ func (s *Server) createEntry(w http.ResponseWriter, r *http.Request, dir bool) {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxEditBytes+4096)
 	var body pathBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad json")
@@ -100,16 +101,26 @@ func (s *Server) createEntry(w http.ResponseWriter, r *http.Request, dir bool) {
 		writeErr(w, http.StatusBadRequest, "bad name")
 		return
 	}
-	if _, err := os.Stat(full); err == nil {
-		writeErr(w, http.StatusConflict, "already exists")
-		return
-	}
 	if dir {
-		err = os.MkdirAll(full, 0o700)
+		err = os.Mkdir(full, 0o700)
 	} else {
-		err = os.WriteFile(full, []byte(body.Content), 0o600)
+		var f *os.File
+		f, err = os.OpenFile(full, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err == nil {
+			_, err = f.Write([]byte(body.Content))
+			if cerr := f.Close(); err == nil {
+				err = cerr
+			}
+			if err != nil {
+				os.Remove(full)
+			}
+		}
 	}
 	if err != nil {
+		if os.IsExist(err) {
+			writeErr(w, http.StatusConflict, "already exists")
+			return
+		}
 		writeErr(w, http.StatusInternalServerError, "create failed")
 		return
 	}
@@ -163,6 +174,7 @@ func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxEditBytes+4096)
 	var body pathBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad json")
@@ -210,7 +222,10 @@ func isTextish(name string, sample []byte) bool {
 	if mt := mime.TypeByExtension(ext); strings.HasPrefix(mt, "text/") {
 		return true
 	}
-	return len(sample) > 0 && !bytes.ContainsRune(sample, 0)
+	if len(sample) == 0 {
+		return true
+	}
+	return !bytes.ContainsRune(sample, 0)
 }
 
 func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
@@ -252,9 +267,15 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "create failed")
 		return
 	}
-	defer out.Close()
 	_ = out.Chmod(0o600)
 	if _, err := io.Copy(out, file); err != nil {
+		out.Close()
+		os.Remove(dst)
+		writeErr(w, http.StatusInternalServerError, "write failed")
+		return
+	}
+	if err := out.Close(); err != nil {
+		os.Remove(dst)
 		writeErr(w, http.StatusInternalServerError, "write failed")
 		return
 	}
@@ -276,7 +297,11 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "not found")
 		return
 	}
-	w.Header().Set("Content-Disposition", `attachment; filename="`+fi.Name()+`"`)
+	cd := mime.FormatMediaType("attachment", map[string]string{"filename": fi.Name()})
+	if cd == "" {
+		cd = "attachment"
+	}
+	w.Header().Set("Content-Disposition", cd)
 	http.ServeFile(w, r, full)
 }
 
@@ -299,13 +324,19 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "is a directory")
 		return
 	}
-	if fi.Size() > maxEditBytes {
-		writeErr(w, http.StatusRequestEntityTooLarge, "file too large to edit")
-		return
-	}
-	sample, err := os.ReadFile(full)
+	f, err := os.Open(full)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "read failed")
+		return
+	}
+	sample, err := io.ReadAll(io.LimitReader(f, maxEditBytes+1))
+	f.Close()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "read failed")
+		return
+	}
+	if len(sample) > maxEditBytes {
+		writeErr(w, http.StatusRequestEntityTooLarge, "file too large to edit")
 		return
 	}
 	if !isTextish(filepath.Base(full), sample) {
@@ -320,6 +351,7 @@ func (s *Server) handleWrite(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
 	var body struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
@@ -335,6 +367,10 @@ func (s *Server) handleWrite(w http.ResponseWriter, r *http.Request) {
 	full, err := ResolveUnder(s.root, body.Path)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad path")
+		return
+	}
+	if err := ValidName(path.Base(body.Path)); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad name")
 		return
 	}
 	if !isTextish(filepath.Base(full), []byte(body.Content)) {
