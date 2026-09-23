@@ -50,10 +50,12 @@ func ResolveUnder(root, p string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	rel := strings.TrimPrefix(clean, "/")
-	full := filepath.Join(rootAbs, filepath.FromSlash(rel))
-	// Ensure full stays inside rootAbs.
-	if full != rootAbs && !strings.HasPrefix(full, rootAbs+string(filepath.Separator)) {
+	relPath := strings.TrimPrefix(clean, "/")
+	full := filepath.Join(rootAbs, filepath.FromSlash(relPath))
+	// Containment via Rel handles filesystem roots ("/", "C:\\") correctly;
+	// a plain HasPrefix(root+sep) false-rejects when rootAbs is a volume root.
+	rel, err := filepath.Rel(rootAbs, full)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", ErrBadPath
 	}
 	return full, nil

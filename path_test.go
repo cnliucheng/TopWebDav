@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestSanitizePath(t *testing.T) {
 	cases := []struct {
@@ -42,8 +46,16 @@ func TestResolveUnder(t *testing.T) {
 	if p == "" {
 		t.Fatal("empty resolve")
 	}
+	rel, err := filepath.Rel(root, p)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		t.Fatalf("resolved outside root: %q (rel=%q err=%v)", p, rel, err)
+	}
 	if _, err := ResolveUnder(root, "/../escape"); err == nil {
 		t.Fatal("escape should fail")
+	}
+	// Filesystem root must still accept children (HasPrefix(root+sep) would fail here).
+	if _, err := ResolveUnder(string(filepath.Separator), "/etc/passwd"); err != nil {
+		t.Fatalf("ResolveUnder(/): %v", err)
 	}
 }
 
