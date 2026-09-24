@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -24,6 +25,8 @@ func CheckPassword(hash, pw string) bool {
 const authRealm = `Basic realm="topwebdav"`
 
 // requireAuth wraps h with HTTP Basic Auth against the configured user.
+// /api/* does not send WWW-Authenticate so browsers never show the native
+// Basic dialog — the web UI uses its own login page instead.
 func (s *Server) requireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, pass, ok := r.BasicAuth()
@@ -32,7 +35,10 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 		h := s.cfg.PasswordHash
 		s.mu.Unlock()
 		if !ok || user != u || !CheckPassword(h, pass) {
-			w.Header().Set("WWW-Authenticate", authRealm)
+			p := r.URL.Path
+			if p != "/api" && !strings.HasPrefix(p, "/api/") {
+				w.Header().Set("WWW-Authenticate", authRealm)
+			}
 			writeErr(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}

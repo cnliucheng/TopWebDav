@@ -26,26 +26,28 @@ func writeErr(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 
-// routes builds the full mux: API, WebDAV, static UI — all behind Basic Auth.
+// routes builds the mux. Static UI is public (custom login page in the app);
+// /api/* and /dav/* require Basic Auth (WebDAV sends WWW-Authenticate).
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/list", s.handleList)
-	mux.HandleFunc("POST /api/mkdir", s.handleMkdir)
-	mux.HandleFunc("POST /api/create", s.handleCreate)
-	mux.HandleFunc("POST /api/upload", s.handleUpload)
-	mux.HandleFunc("GET /api/download", s.handleDownload)
-	mux.HandleFunc("GET /api/read", s.handleRead)
-	mux.HandleFunc("POST /api/write", s.handleWrite)
-	mux.HandleFunc("DELETE /api/delete", s.handleDelete)
-	mux.HandleFunc("POST /api/rename", s.handleRename)
-	mux.HandleFunc("POST /api/password", s.handlePassword)
-	// Unmatched /api/* must stay JSON — FileServer returns text/plain 404.
-	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+	api := http.NewServeMux()
+	api.HandleFunc("GET /api/list", s.handleList)
+	api.HandleFunc("POST /api/mkdir", s.handleMkdir)
+	api.HandleFunc("POST /api/create", s.handleCreate)
+	api.HandleFunc("POST /api/upload", s.handleUpload)
+	api.HandleFunc("GET /api/download", s.handleDownload)
+	api.HandleFunc("GET /api/read", s.handleRead)
+	api.HandleFunc("POST /api/write", s.handleWrite)
+	api.HandleFunc("DELETE /api/delete", s.handleDelete)
+	api.HandleFunc("POST /api/rename", s.handleRename)
+	api.HandleFunc("POST /api/password", s.handlePassword)
+	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "api not found")
 	})
-	mux.Handle("/dav/", s.davHandler())
+	mux.Handle("/api/", s.requireAuth(stripAPITrailingSlash(api)))
+	mux.Handle("/dav/", s.requireAuth(s.davHandler()))
 	mux.Handle("/", http.FileServer(http.FS(mustWebFS())))
-	return s.requireAuth(stripAPITrailingSlash(mux))
+	return mux
 }
 
 // stripAPITrailingSlash turns /api/list/ into /api/list so proxies and

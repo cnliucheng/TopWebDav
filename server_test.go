@@ -45,6 +45,9 @@ func TestRoutesAuth(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("list unauth code=%d", rec.Code)
 	}
+	if rec.Header().Get("WWW-Authenticate") != "" {
+		t.Fatal("API must not send WWW-Authenticate (avoid browser basic dialog)")
+	}
 	req := httptest.NewRequest(http.MethodGet, "/api/list?path=/", nil)
 	req.SetBasicAuth("admin", "admin")
 	rec = httptest.NewRecorder()
@@ -58,10 +61,14 @@ func TestRoutesAuth(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("dav unauth code=%d", rec.Code)
 	}
+	if !strings.Contains(rec.Header().Get("WWW-Authenticate"), "Basic") {
+		t.Fatal("WebDAV must send WWW-Authenticate")
+	}
+	// Static UI is public (custom login page).
 	req = httptest.NewRequest(http.MethodGet, "/", nil)
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("index unauth code=%d", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("index code=%d want 200", rec.Code)
 	}
 }

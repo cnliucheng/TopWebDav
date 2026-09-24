@@ -2,8 +2,8 @@
 
 const state = {
   cur: "/",
-  auth: "",
-  user: "",
+  auth: sessionStorage.getItem("twd.auth") || "",
+  user: sessionStorage.getItem("twd.user") || "",
   lang: localStorage.getItem("twd.lang") || ((navigator.language || "zh").toLowerCase().startsWith("zh") ? "zh" : "en"),
   theme: localStorage.getItem("twd.theme") || "auto",
 };
@@ -38,6 +38,12 @@ const I18N = {
     oldPassword: "旧密码",
     newPassword: "新密码",
     theme: "主题",
+    username: "用户名",
+    password: "密码",
+    signIn: "登录",
+    loginSubtitle: "登录以管理文件",
+    loginUserPh: "admin",
+    loginPassPh: "••••••••",
     download: "下载",
     edit: "编辑",
     rename: "重命名",
@@ -86,6 +92,12 @@ const I18N = {
     oldPassword: "Current password",
     newPassword: "New password",
     theme: "Theme",
+    username: "Username",
+    password: "Password",
+    signIn: "Sign in",
+    loginSubtitle: "Sign in to manage files",
+    loginUserPh: "admin",
+    loginPassPh: "••••••••",
     download: "Download",
     edit: "Edit",
     rename: "Rename",
@@ -270,6 +282,9 @@ async function api(pathname, opts) {
   const res = await fetch(pathname, options);
   if (res.status === 401) {
     state.auth = "";
+    sessionStorage.removeItem("twd.auth");
+    sessionStorage.removeItem("twd.user");
+    showLoginView();
     const err = new Error(t("unauthorized"));
     err.status = 401;
     throw err;
@@ -291,35 +306,78 @@ async function api(pathname, opts) {
   return res;
 }
 
-async function ensureLogin() {
-  while (!state.auth) {
-    const user = await promptText(t("loginUser"), state.user || "admin");
-    if (user === null) {
-      showError(t("needLogin"));
-      return false;
-    }
-    const pass = await promptPassword(t("loginPass"));
-    if (pass === null) {
-      showError(t("needLogin"));
-      return false;
-    }
-    state.user = user;
-    state.auth = toBasic(user, pass);
-    try {
-      await api("api/list?path=" + encodeURIComponent("/"));
-      showError("");
-      return true;
-    } catch (e) {
-      state.auth = "";
-      if (e.status === 401) {
-        showError(t("badLogin"));
-        continue;
-      }
-      showError(e.message);
-      return false;
-    }
+function showLoginView() {
+  const login = $("loginView");
+  const app = $("appView");
+  if (login) login.hidden = false;
+  if (app) app.hidden = true;
+  const err = $("loginError");
+  if (!err) return;
+}
+
+function showLoginError(msg) {
+  const el = $("loginError");
+  if (!el) return;
+  if (!msg) {
+    el.hidden = true;
+    el.textContent = "";
+    return;
   }
-  return true;
+  el.hidden = false;
+  el.textContent = msg;
+}
+
+function showAppView() {
+  const login = $("loginView");
+  const app = $("appView");
+  if (login) login.hidden = true;
+  if (app) app.hidden = false;
+}
+
+function saveAuth(user, passB64) {
+  state.user = user;
+  state.auth = passB64;
+  sessionStorage.setItem("twd.user", user);
+  sessionStorage.setItem("twd.auth", passB64);
+}
+
+async function tryLogin(user, pass) {
+  saveAuth(user, toBasic(user, pass));
+  try {
+    await api("api/list?path=" + encodeURIComponent("/"));
+    showLoginError("");
+    return true;
+  } catch (e) {
+    state.auth = "";
+    sessionStorage.removeItem("twd.auth");
+    sessionStorage.removeItem("twd.user");
+    if (e.status === 401) {
+      showLoginError(t("badLogin"));
+    } else {
+      showLoginError(e.message);
+    }
+    return false;
+  }
+}
+
+function wireLogin() {
+  const form = $("loginForm");
+  if (!form) return;
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const user = $("loginUser").value.trim();
+    const pass = $("loginPass").value;
+    if (!user || !pass) {
+      showLoginError(t("badLogin"));
+      return;
+    }
+    tryLogin(user, pass).then((ok) => {
+      if (ok) {
+        showAppView();
+        load().catch((err) => showError(err.message));
+      }
+    });
+  });
 }
 
 function fmtSize(n) {
@@ -651,16 +709,21 @@ async function doChangePassword() {
 async function doLogout() {
   showError("");
   state.auth = "";
+  state.user = "";
   state.cur = "/";
-  $("rows").textContent = "";
-  $("pathLabel").textContent = state.cur;
-  if (await ensureLogin()) {
-    try {
-      await load();
-    } catch (e) {
-      showError(e.message);
-    }
-  }
+  sessionStorage.removeItem("twd.auth");
+  sessionStorage.removeItem("twd.user");
+  const rows = $("rows");
+  if (rows) rows.textContent = "";
+  const pathLabel = $("pathLabel");
+  if (pathLabel) pathLabel.textContent = state.cur;
+  showLoginView();
+  showLoginError("");
+  const u = $("loginUser");
+  const p = $("loginPass");
+  if (u) u.value = "";
+  if (p) p.value = "";
+  if (u) u.focus();
 }
 
 function wire() {
@@ -705,21 +768,27 @@ async function boot() {
   applyTheme();
   applyI18n();
   wire();
+  wireLogin();
+  if (!state.auth) {
+    showLoginView();
+    const u = $("loginUser");
+    if (u) {
+      u.value = "admin";
+      u.focus();
+    }
+    return;
+  }
   try {
     await load();
+    showAppView();
     return;
   } catch (e) {
-    if (e.status !== 401 && state.auth) {
-      showError(e.message);
+    if (e.status === 401) {
+      showLoginView();
       return;
     }
-  }
-  if (await ensureLogin()) {
-    try {
-      await load();
-    } catch (e) {
-      showError(e.message);
-    }
+    showError(e.message);
+    showAppView();
   }
 }
 

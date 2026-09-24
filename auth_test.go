@@ -37,7 +37,7 @@ func TestBasicAuthMiddleware(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/dav/", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
@@ -47,7 +47,17 @@ func TestBasicAuthMiddleware(t *testing.T) {
 		t.Fatal("missing WWW-Authenticate")
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/list", nil)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("api code=%d want 401", rec.Code)
+	}
+	if rec.Header().Get("WWW-Authenticate") != "" {
+		t.Fatal("api must not challenge browser basic auth")
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/dav/", nil)
 	req.SetBasicAuth("admin", "admin")
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -67,7 +77,7 @@ func TestChangePassword(t *testing.T) {
 		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
 	}
 	// Old password must fail Basic Auth now.
-	req2 := httptest.NewRequest(http.MethodGet, "/", nil)
+	req2 := httptest.NewRequest(http.MethodGet, "/dav/", nil)
 	req2.SetBasicAuth("admin", "admin")
 	rec2 := httptest.NewRecorder()
 	s.requireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
