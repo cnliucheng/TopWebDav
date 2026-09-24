@@ -4,7 +4,149 @@ const state = {
   cur: "/",
   auth: "",
   user: "",
+  lang: localStorage.getItem("twd.lang") || ((navigator.language || "zh").toLowerCase().startsWith("zh") ? "zh" : "en"),
+  theme: localStorage.getItem("twd.theme") || "auto",
 };
+
+const I18N = {
+  zh: {
+    subtitle: "文件管理",
+    btnPassword: "改密码",
+    btnLogout: "退出",
+    btnUp: "上级目录",
+    btnRefresh: "刷新",
+    btnMkdir: "新建文件夹",
+    btnCreate: "新建文件",
+    btnUpload: "上传",
+    colName: "名称",
+    colSize: "大小",
+    colTime: "修改时间",
+    colActions: "操作",
+    emptyTitle: "这个目录是空的",
+    emptySub: "上传文件，或新建一个文件夹开始整理",
+    cancel: "取消",
+    save: "保存",
+    create: "创建",
+    ok: "确定",
+    createTitle: "新建文件",
+    fileName: "文件名",
+    content: "内容",
+    value: "内容",
+    createNamePh: "例如 notes.txt",
+    createBodyPh: "可留空",
+    changePassword: "修改密码",
+    oldPassword: "旧密码",
+    newPassword: "新密码",
+    theme: "主题",
+    download: "下载",
+    edit: "编辑",
+    rename: "重命名",
+    delete: "删除",
+    editTitle: "编辑 {path}",
+    mkdirTitle: "新建文件夹 — 名称",
+    renameTitle: "重命名",
+    promptInput: "输入",
+    loginUser: "登录 — 用户名",
+    loginPass: "登录 — 密码",
+    needLogin: "需要登录才能使用",
+    badLogin: "用户名或密码错误",
+    unauthorized: "未登录或登录已失效",
+    requestFail: "请求失败 ({code})",
+    fillFileName: "请填写文件名",
+    fillPasswords: "请填写旧密码和新密码",
+    passwordChanged: "密码已修改",
+    confirmDelete: "确定删除 {name}？",
+  },
+  en: {
+    subtitle: "Files",
+    btnPassword: "Password",
+    btnLogout: "Sign out",
+    btnUp: "Parent folder",
+    btnRefresh: "Refresh",
+    btnMkdir: "New folder",
+    btnCreate: "New file",
+    btnUpload: "Upload",
+    colName: "Name",
+    colSize: "Size",
+    colTime: "Modified",
+    colActions: "Actions",
+    emptyTitle: "This folder is empty",
+    emptySub: "Upload files or create a folder to get started",
+    cancel: "Cancel",
+    save: "Save",
+    create: "Create",
+    ok: "OK",
+    createTitle: "New file",
+    fileName: "File name",
+    content: "Content",
+    value: "Value",
+    createNamePh: "e.g. notes.txt",
+    createBodyPh: "Optional",
+    changePassword: "Change password",
+    oldPassword: "Current password",
+    newPassword: "New password",
+    theme: "Theme",
+    download: "Download",
+    edit: "Edit",
+    rename: "Rename",
+    delete: "Delete",
+    editTitle: "Edit {path}",
+    mkdirTitle: "New folder — name",
+    renameTitle: "Rename",
+    promptInput: "Input",
+    loginUser: "Sign in — username",
+    loginPass: "Sign in — password",
+    needLogin: "Sign in required",
+    badLogin: "Incorrect username or password",
+    unauthorized: "Not signed in or session expired",
+    requestFail: "Request failed ({code})",
+    fillFileName: "File name is required",
+    fillPasswords: "Enter current and new password",
+    passwordChanged: "Password updated",
+    confirmDelete: "Delete {name}?",
+  },
+};
+
+function t(key, vars) {
+  const lang = state.lang === "en" ? "en" : "zh";
+  let s = (I18N[lang] && I18N[lang][key]) || I18N.zh[key] || key;
+  if (vars) {
+    for (const k of Object.keys(vars)) {
+      s = s.replace("{" + k + "}", vars[k]);
+    }
+  }
+  return s;
+}
+
+function applyI18n() {
+  document.documentElement.lang = state.lang === "en" ? "en" : "zh-CN";
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    el.textContent = t(el.getAttribute("data-i18n"));
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    const v = t(el.getAttribute("data-i18n-title"));
+    el.title = v;
+    el.setAttribute("aria-label", v);
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+    el.placeholder = t(el.getAttribute("data-i18n-placeholder"));
+  });
+  const langLabel = $("langLabel");
+  if (langLabel) langLabel.textContent = state.lang === "en" ? "中文" : "EN";
+}
+
+function resolveTheme() {
+  if (state.theme === "dark" || state.theme === "light") return state.theme;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyTheme() {
+  const mode = resolveTheme();
+  document.documentElement.setAttribute("data-theme", mode);
+  localStorage.setItem("twd.theme", state.theme);
+  const use = document.querySelector("#themeIcon use");
+  if (use) use.setAttribute("href", mode === "dark" ? "#i-sun" : "#i-moon");
+}
 
 function $(id) {
   return document.getElementById(id);
@@ -128,13 +270,13 @@ async function api(pathname, opts) {
   const res = await fetch(pathname, options);
   if (res.status === 401) {
     state.auth = "";
-    const err = new Error("未登录或登录已失效");
+    const err = new Error(t("unauthorized"));
     err.status = 401;
     throw err;
   }
   const ct = res.headers.get("Content-Type") || "";
   if (!res.ok) {
-    let msg = "请求失败 (" + res.status + ")";
+    let msg = t("requestFail", { code: res.status });
     if (ct.includes("application/json")) {
       try {
         const j = await res.json();
@@ -151,14 +293,14 @@ async function api(pathname, opts) {
 
 async function ensureLogin() {
   while (!state.auth) {
-    const user = await promptText("登录 — 用户名", state.user || "admin");
+    const user = await promptText(t("loginUser"), state.user || "admin");
     if (user === null) {
-      showError("需要登录才能使用");
+      showError(t("needLogin"));
       return false;
     }
-    const pass = await promptPassword("登录 — 密码");
+    const pass = await promptPassword(t("loginPass"));
     if (pass === null) {
-      showError("需要登录才能使用");
+      showError(t("needLogin"));
       return false;
     }
     state.user = user;
@@ -170,7 +312,7 @@ async function ensureLogin() {
     } catch (e) {
       state.auth = "";
       if (e.status === 401) {
-        showError("用户名或密码错误");
+        showError(t("badLogin"));
         continue;
       }
       showError(e.message);
@@ -272,16 +414,26 @@ function renderRow(it) {
   tdAct.className = "actions";
   const actions = [];
   if (!it.is_dir) {
-    actions.push(["下载", () => download(it.path, it.name), ""]);
-    actions.push(["编辑", () => openEdit(it.path), ""]);
+    actions.push(["i-download", "download", () => download(it.path, it.name), ""]);
+    actions.push(["i-pencil", "edit", () => openEdit(it.path), ""]);
   }
-  actions.push(["重命名", () => doRename(it), ""]);
-  actions.push(["删除", () => doDelete(it), "danger"]);
-  for (const [label, fn, kind] of actions) {
+  actions.push(["i-rename", "rename", () => doRename(it), ""]);
+  actions.push(["i-trash", "delete", () => doDelete(it), "danger"]);
+  for (const [icon, labelKey, fn, kind] of actions) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "btn sm" + (kind ? " " + kind : "");
-    b.textContent = label;
+    b.title = t(labelKey);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "icon");
+    svg.setAttribute("aria-hidden", "true");
+    const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    use.setAttribute("href", "#" + icon);
+    svg.appendChild(use);
+    b.appendChild(svg);
+    const label = document.createElement("span");
+    label.textContent = t(labelKey);
+    b.appendChild(label);
     b.addEventListener("click", () => {
       Promise.resolve(fn()).catch((e) => showError(e.message));
     });
@@ -309,7 +461,7 @@ function openEdit(path) {
   showError("");
   return (async () => {
     const data = await api("api/read?path=" + encodeURIComponent(path));
-    $("editTitle").textContent = "编辑 " + path;
+    $("editTitle").textContent = t("editTitle", { path });
     $("editBody").value = (data && data.content) || "";
     const dlg = $("dlgEdit");
     await new Promise((resolve) => {
@@ -346,7 +498,7 @@ function openEdit(path) {
 
 async function doMkdir() {
   showError("");
-  const name = await promptText("新建文件夹 — 名称");
+  const name = await promptText(t("mkdirTitle"));
   if (name === null || name === "") return;
   await api("api/mkdir", {
     method: "POST",
@@ -366,7 +518,7 @@ async function doCreate() {
     const onSave = async () => {
       const name = nameEl.value.trim();
       if (!name) {
-        showError("请填写文件名");
+        showError(t("fillFileName"));
         nameEl.focus();
         return;
       }
@@ -411,7 +563,7 @@ async function doCreate() {
 
 async function doRename(it) {
   showError("");
-  const name = await promptText("重命名", it.name);
+  const name = await promptText(t("renameTitle"), it.name);
   if (name === null || name === "" || name === it.name) return;
   await api("api/rename", {
     method: "POST",
@@ -422,7 +574,7 @@ async function doRename(it) {
 
 async function doDelete(it) {
   showError("");
-  if (!confirm("确定删除 " + it.name + "？")) return;
+  if (!confirm(t("confirmDelete", { name: it.name }))) return;
   await api("api/delete?path=" + encodeURIComponent(it.path), {
     method: "DELETE",
   });
@@ -460,7 +612,7 @@ async function doChangePassword() {
       const oldPw = $("oldPw").value;
       const newPw = $("newPw").value;
       if (!oldPw || !newPw) {
-        showError("请填写旧密码和新密码");
+        showError(t("fillPasswords"));
         return;
       }
       try {
@@ -471,7 +623,7 @@ async function doChangePassword() {
         state.auth = toBasic(state.user, newPw);
         cleanup();
         dlg.close();
-        showError("密码已修改");
+        showError(t("passwordChanged"));
         resolve();
       } catch (e) {
         showError(e.message);
@@ -531,9 +683,24 @@ function wire() {
   $("btnLogout").addEventListener("click", () => {
     doLogout().catch((e) => showError(e.message));
   });
+  $("btnLang").addEventListener("click", () => {
+    state.lang = state.lang === "en" ? "zh" : "en";
+    localStorage.setItem("twd.lang", state.lang);
+    applyI18n();
+  });
+  $("btnTheme").addEventListener("click", () => {
+    const mode = resolveTheme();
+    state.theme = mode === "dark" ? "light" : "dark";
+    applyTheme();
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (state.theme === "auto") applyTheme();
+  });
 }
 
 async function boot() {
+  applyTheme();
+  applyI18n();
   wire();
   try {
     await load();

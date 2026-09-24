@@ -1,6 +1,9 @@
 :root {
   --bg: #f4f4f5;
+  --bg-glow-1: #ecfdf5;
+  --bg-glow-2: #eef2ff;
   --surface: #ffffff;
+  --surface-2: #fafafa;
   --ink: #18181b;
   --muted: #71717a;
   --line: #e4e4e7;
@@ -8,13 +11,47 @@
   --accent: #059669;
   --accent-hover: #047857;
   --accent-soft: #ecfdf5;
+  --accent-border: #a7f3d0;
   --danger: #dc2626;
   --danger-soft: #fef2f2;
+  --danger-ink: #991b1b;
+  --danger-line: #fecaca;
+  --input-bg: #fafafa;
+  --shadow: 0 1px 2px rgba(24, 24, 27, 0.04), 0 8px 24px rgba(24, 24, 27, 0.04);
+  --dialog-shadow: 0 24px 64px rgba(24, 24, 27, 0.16);
+  --backdrop: rgba(24, 24, 27, 0.4);
+  --focus-ring: rgba(5, 150, 105, 0.12);
   --radius: 12px;
   --radius-sm: 8px;
-  --shadow: 0 1px 2px rgba(24, 24, 27, 0.04), 0 8px 24px rgba(24, 24, 27, 0.04);
   --font: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #09090b;
+  --bg-glow-1: #022c22;
+  --bg-glow-2: #1e1b4b;
+  --surface: #18181b;
+  --surface-2: #111113;
+  --ink: #f4f4f5;
+  --muted: #a1a1aa;
+  --line: #2e2e32;
+  --line-soft: #27272a;
+  --accent: #34d399;
+  --accent-hover: #10b981;
+  --accent-soft: #052e22;
+  --accent-border: #065f46;
+  --danger: #f87171;
+  --danger-soft: #2a1212;
+  --danger-ink: #fecaca;
+  --danger-line: #7f1d1d;
+  --input-bg: #111113;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25);
+  --dialog-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  --backdrop: rgba(0, 0, 0, 0.55);
+  --focus-ring: rgba(52, 211, 153, 0.18);
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -26,8 +63,8 @@ body {
   font: 14px/1.5 var(--font);
   color: var(--ink);
   background:
-    radial-gradient(1200px 500px at 10% -10%, #ecfdf5 0%, transparent 55%),
-    radial-gradient(900px 400px at 100% 0%, #eef2ff 0%, transparent 50%),
+    radial-gradient(1200px 500px at 10% -10%, var(--bg-glow-1) 0%, transparent 55%),
+    radial-gradient(900px 400px at 100% 0%, var(--bg-glow-2) 0%, transparent 50%),
     var(--bg);
   min-height: 100%;
 }
@@ -38,13 +75,20 @@ body {
   padding: 28px 20px 48px;
 }
 
-/* —— top bar —— */
+.icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: block;
+}
+
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;
+  flex-wrap: wrap;
 }
 
 .brand {
@@ -89,10 +133,10 @@ body {
 
 .top-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  align-items: center;
 }
 
-/* —— surfaces —— */
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -139,7 +183,6 @@ body {
   flex-wrap: wrap;
 }
 
-/* —— buttons —— */
 .btn {
   font: inherit;
   font-weight: 500;
@@ -149,12 +192,15 @@ body {
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease, color 0.15s ease;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .btn:hover {
-  background: var(--bg);
+  background: var(--surface-2);
 }
 
 .btn:active {
@@ -164,7 +210,11 @@ body {
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: #042f1e;
+}
+
+[data-theme="dark"] .btn.primary {
+  color: #022c22;
 }
 
 .btn.primary:hover {
@@ -180,19 +230,25 @@ body {
 
 .btn.ghost:hover {
   color: var(--ink);
-  background: rgba(24, 24, 27, 0.05);
+  background: rgba(127, 127, 127, 0.12);
 }
 
 .btn.icon {
-  width: 34px;
+  min-width: 34px;
   height: 34px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
+  padding: 0 8px;
   justify-content: center;
-  font-size: 15px;
   color: var(--muted);
-  flex-shrink: 0;
+}
+
+.btn.icon.ghost {
+  gap: 4px;
+}
+
+#langLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .btn.sm {
@@ -202,11 +258,17 @@ body {
   color: var(--muted);
   background: transparent;
   border-color: transparent;
+  gap: 4px;
+}
+
+.btn.sm .icon {
+  width: 13px;
+  height: 13px;
 }
 
 .btn.sm:hover {
   color: var(--ink);
-  background: var(--bg);
+  background: var(--surface-2);
   border-color: var(--line-soft);
 }
 
@@ -215,7 +277,6 @@ body {
   background: var(--danger-soft);
 }
 
-/* —— table —— */
 .panel {
   overflow: hidden;
 }
@@ -235,7 +296,7 @@ th {
   font-size: 12px;
   font-weight: 500;
   color: var(--muted);
-  background: #fafafa;
+  background: var(--surface-2);
   border-bottom: 1px solid var(--line);
 }
 
@@ -244,12 +305,12 @@ tbody tr:last-child td {
 }
 
 tbody tr:hover td {
-  background: #fafafa;
+  background: var(--surface-2);
 }
 
 .col-size { width: 100px; }
 .col-time { width: 160px; }
-.col-act { width: 200px; }
+.col-act { width: 210px; }
 
 .name-cell {
   display: flex;
@@ -280,7 +341,6 @@ tbody tr:hover td {
   color: var(--ink);
 }
 
-/* geometric file/folder marks (CSS, not illustration) */
 .mark {
   width: 28px;
   height: 28px;
@@ -288,7 +348,7 @@ tbody tr:hover td {
   flex-shrink: 0;
   position: relative;
   background: var(--accent-soft);
-  border: 1px solid #a7f3d0;
+  border: 1px solid var(--accent-border);
 }
 
 .mark.folder::before {
@@ -317,7 +377,7 @@ tbody tr:hover td {
 }
 
 .mark.file {
-  background: #f4f4f5;
+  background: var(--surface-2);
   border-color: var(--line);
 }
 
@@ -358,7 +418,6 @@ tbody tr:hover td {
   margin-left: 2px;
 }
 
-/* —— empty —— */
 .empty {
   padding: 56px 24px 64px;
   text-align: center;
@@ -369,7 +428,7 @@ tbody tr:hover td {
   height: 56px;
   margin: 0 auto 14px;
   border-radius: 16px;
-  background: var(--bg);
+  background: var(--surface-2);
   border: 1px dashed var(--line);
   position: relative;
 }
@@ -378,9 +437,10 @@ tbody tr:hover td {
   content: "";
   position: absolute;
   inset: 16px 14px 14px;
-  border: 2px solid #d4d4d8;
+  border: 2px solid var(--muted);
   border-radius: 4px;
   border-top-width: 8px;
+  opacity: 0.55;
 }
 
 .empty-title {
@@ -395,30 +455,28 @@ tbody tr:hover td {
   font-size: 13px;
 }
 
-/* —— error —— */
 .error {
   margin: 0 0 14px;
   padding: 10px 14px;
   background: var(--danger-soft);
-  color: #991b1b;
-  border: 1px solid #fecaca;
+  color: var(--danger-ink);
+  border: 1px solid var(--danger-line);
   border-radius: var(--radius-sm);
   font-size: 13px;
 }
 
-/* —— dialogs —— */
 .dlg {
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 0;
-  box-shadow: 0 24px 64px rgba(24, 24, 27, 0.16);
+  box-shadow: var(--dialog-shadow);
   width: min(640px, calc(100vw - 32px));
   background: var(--surface);
   color: var(--ink);
 }
 
 .dlg::backdrop {
-  background: rgba(24, 24, 27, 0.4);
+  background: var(--backdrop);
   backdrop-filter: blur(2px);
 }
 
@@ -453,10 +511,10 @@ tbody tr:hover td {
   padding: 9px 11px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: #fafafa;
+  background: var(--input-bg);
   color: var(--ink);
   outline: none;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
 .dlg-form textarea {
@@ -479,8 +537,8 @@ tbody tr:hover td {
 .field input:focus,
 .dlg-form textarea:focus {
   border-color: var(--accent);
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .dlg-actions {
@@ -494,7 +552,7 @@ tbody tr:hover td {
   .col-time { display: none; }
   .toolbar { align-items: stretch; }
   .tools { width: 100%; }
-  .tools .btn { flex: 1; }
+  .tools .btn { flex: 1; justify-content: center; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,4 +1,3 @@
-<!-- AI生成 -->
 <!doctype html>
 <html lang="zh-CN">
 <head>
@@ -8,7 +7,25 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<p data-aigc-mark="1" style="margin:0 0 8px;font-size:10px;line-height:1.3;color:#6b6560;font-weight:400;">AI生成</p>
+  <!-- SF Symbols–style icon sprite (stroke, currentColor) -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+    <defs>
+      <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-folder-plus" viewBox="0 0 24 24"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2h7A1.5 1.5 0 0 1 19 9.5v8A1.5 1.5 0 0 1 17.5 19h-13A1.5 1.5 0 0 1 3 17.5v-10Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 12v5M9.5 14.5h5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+      <symbol id="i-doc-plus" viewBox="0 0 24 24"><path d="M7 3.5h6.5L18 8v12.5A1.5 1.5 0 0 1 16.5 22h-9A1.5 1.5 0 0 1 6 20.5v-16A1.5 1.5 0 0 1 7.5 3.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M13 3.5V8h4.5M12 12v5M9.5 14.5h5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V5M8 9l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 15v3.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+      <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8.5" cy="14.5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M11 12.5 20 4m-3 2 2.5 2.5M15 8l2 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-logout" viewBox="0 0 24 24"><path d="M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19H10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M14 8.5 17.5 12 14 15.5M17.5 12H9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 5v11M8 12l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 18.5h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+      <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M14.5 5.5 18.5 9.5M4.5 19.5l.8-3.6L15.2 5.9a1.2 1.2 0 0 1 1.7 0l1.2 1.2a1.2 1.2 0 0 1 0 1.7L8.1 18.7l-3.6.8Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+      <symbol id="i-rename" viewBox="0 0 24 24"><path d="M5 7h8M5 12h6M5 17h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M14.5 15.5 19 11l2 2-4.5 4.5-2.6.6.6-2.6Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5.5A1.5 1.5 0 0 1 11.5 4h1A1.5 1.5 0 0 1 14 5.5V7M7 7l.8 11.2A1.5 1.5 0 0 0 9.3 19.5h5.4a1.5 1.5 0 0 0 1.5-1.3L17 7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M5.6 18.4l1.6-1.6M16.8 7.2l1.6-1.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M18.5 14.2A7.5 7.5 0 0 1 9.8 5.5 7.5 7.5 0 1 0 18.5 14.2Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 12h17M12 3.5c2.5 2.8 2.5 14.2 0 17M12 3.5c-2.5 2.8-2.5 14.2 0 17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    </defs>
+  </svg>
 
   <div class="app">
     <header class="topbar">
@@ -16,12 +33,25 @@
         <span class="brand-mark" aria-hidden="true"></span>
         <div class="brand-text">
           <strong>TopWebDav</strong>
-          <span>文件管理</span>
+          <span data-i18n="subtitle">文件管理</span>
         </div>
       </div>
       <div class="top-actions">
-        <button id="btnPassword" type="button" class="btn ghost">改密码</button>
-        <button id="btnLogout" type="button" class="btn ghost">退出</button>
+        <button id="btnLang" type="button" class="btn icon ghost" title="Language" aria-label="Language">
+          <svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg>
+          <span id="langLabel">EN</span>
+        </button>
+        <button id="btnTheme" type="button" class="btn icon ghost" data-i18n-title="theme" title="主题" aria-label="主题">
+          <svg class="icon" id="themeIcon" aria-hidden="true"><use href="#i-moon"/></svg>
+        </button>
+        <button id="btnPassword" type="button" class="btn ghost">
+          <svg class="icon" aria-hidden="true"><use href="#i-key"/></svg>
+          <span data-i18n="btnPassword">改密码</span>
+        </button>
+        <button id="btnLogout" type="button" class="btn ghost">
+          <svg class="icon" aria-hidden="true"><use href="#i-logout"/></svg>
+          <span data-i18n="btnLogout">退出</span>
+        </button>
       </div>
     </header>
 
@@ -29,14 +59,28 @@
 
     <section class="toolbar card">
       <div class="crumbs">
-        <button id="btnUp" type="button" class="btn icon" title="上级目录" aria-label="上级目录">↑</button>
-        <nav id="pathLabel" class="crumb-path" aria-label="当前路径">/</nav>
+        <button id="btnUp" type="button" class="btn icon" data-i18n-title="btnUp" title="上级目录" aria-label="上级目录">
+          <svg class="icon" aria-hidden="true"><use href="#i-up"/></svg>
+        </button>
+        <nav id="pathLabel" class="crumb-path" aria-label="path">/</nav>
       </div>
       <div class="tools">
-        <button id="btnRefresh" type="button" class="btn">刷新</button>
-        <button id="btnMkdir" type="button" class="btn">新建文件夹</button>
-        <button id="btnCreate" type="button" class="btn">新建文件</button>
-        <button id="btnUpload" type="button" class="btn primary">上传</button>
+        <button id="btnRefresh" type="button" class="btn">
+          <svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>
+          <span data-i18n="btnRefresh">刷新</span>
+        </button>
+        <button id="btnMkdir" type="button" class="btn">
+          <svg class="icon" aria-hidden="true"><use href="#i-folder-plus"/></svg>
+          <span data-i18n="btnMkdir">新建文件夹</span>
+        </button>
+        <button id="btnCreate" type="button" class="btn">
+          <svg class="icon" aria-hidden="true"><use href="#i-doc-plus"/></svg>
+          <span data-i18n="btnCreate">新建文件</span>
+        </button>
+        <button id="btnUpload" type="button" class="btn primary">
+          <svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg>
+          <span data-i18n="btnUpload">上传</span>
+        </button>
       </div>
     </section>
 
@@ -44,18 +88,18 @@
       <table id="listing">
         <thead>
           <tr>
-            <th>名称</th>
-            <th class="col-size">大小</th>
-            <th class="col-time">修改时间</th>
-            <th class="col-act">操作</th>
+            <th data-i18n="colName">名称</th>
+            <th class="col-size" data-i18n="colSize">大小</th>
+            <th class="col-time" data-i18n="colTime">修改时间</th>
+            <th class="col-act" data-i18n="colActions">操作</th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
       </table>
       <div id="emptyState" class="empty" hidden>
         <div class="empty-icon" aria-hidden="true"></div>
-        <p class="empty-title">这个目录是空的</p>
-        <p class="empty-sub">上传文件，或新建一个文件夹开始整理</p>
+        <p class="empty-title" data-i18n="emptyTitle">这个目录是空的</p>
+        <p class="empty-sub" data-i18n="emptySub">上传文件，或新建一个文件夹开始整理</p>
       </div>
     </section>
   </div>
@@ -67,8 +111,26 @@
       <h2 id="editTitle">编辑</h2>
       <textarea id="editBody" rows="16" spellcheck="false"></textarea>
       <div class="dlg-actions">
-        <button id="editCancel" type="button" class="btn">取消</button>
-        <button id="editSave" type="button" class="btn primary">保存</button>
+        <button id="editCancel" type="button" class="btn" data-i18n="cancel">取消</button>
+        <button id="editSave" type="button" class="btn primary" data-i18n="save">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlgCreate" class="dlg">
+    <form method="dialog" class="dlg-form">
+      <h2 data-i18n="createTitle">新建文件</h2>
+      <label class="field">
+        <span data-i18n="fileName">文件名</span>
+        <input id="createName" type="text" data-i18n-placeholder="createNamePh" placeholder="例如 notes.txt" autocomplete="off" />
+      </label>
+      <label class="field">
+        <span data-i18n="content">内容</span>
+        <textarea id="createBody" rows="14" spellcheck="false" data-i18n-placeholder="createBodyPh" placeholder="可留空"></textarea>
+      </label>
+      <div class="dlg-actions">
+        <button id="createCancel" type="button" class="btn" data-i18n="cancel">取消</button>
+        <button id="createSave" type="button" class="btn primary" data-i18n="create">创建</button>
       </div>
     </form>
   </dialog>
@@ -77,49 +139,31 @@
     <form method="dialog" class="dlg-form">
       <h2 id="promptTitle">输入</h2>
       <label class="field">
-        <span>内容</span>
+        <span data-i18n="value">内容</span>
         <input id="promptValue" type="text" autocomplete="off" />
         <input id="promptSecret" type="password" autocomplete="off" hidden />
       </label>
       <div class="dlg-actions">
-        <button id="promptCancel" type="button" class="btn">取消</button>
-        <button id="promptOk" type="button" class="btn primary">确定</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="dlgCreate" class="dlg">
-    <form method="dialog" class="dlg-form">
-      <h2>新建文件</h2>
-      <label class="field">
-        <span>文件名</span>
-        <input id="createName" type="text" placeholder="例如 notes.txt" autocomplete="off" />
-      </label>
-      <label class="field">
-        <span>内容</span>
-        <textarea id="createBody" rows="14" spellcheck="false" placeholder="可留空"></textarea>
-      </label>
-      <div class="dlg-actions">
-        <button id="createCancel" type="button" class="btn">取消</button>
-        <button id="createSave" type="button" class="btn primary">创建</button>
+        <button id="promptCancel" type="button" class="btn" data-i18n="cancel">取消</button>
+        <button id="promptOk" type="button" class="btn primary" data-i18n="ok">确定</button>
       </div>
     </form>
   </dialog>
 
   <dialog id="dlgPassword" class="dlg">
     <form method="dialog" class="dlg-form">
-      <h2>修改密码</h2>
+      <h2 data-i18n="changePassword">修改密码</h2>
       <label class="field">
-        <span>旧密码</span>
+        <span data-i18n="oldPassword">旧密码</span>
         <input id="oldPw" type="password" autocomplete="current-password" />
       </label>
       <label class="field">
-        <span>新密码</span>
+        <span data-i18n="newPassword">新密码</span>
         <input id="newPw" type="password" autocomplete="new-password" />
       </label>
       <div class="dlg-actions">
-        <button id="pwCancel" type="button" class="btn">取消</button>
-        <button id="pwSave" type="button" class="btn primary">保存</button>
+        <button id="pwCancel" type="button" class="btn" data-i18n="cancel">取消</button>
+        <button id="pwSave" type="button" class="btn primary" data-i18n="save">保存</button>
       </div>
     </form>
   </dialog>
