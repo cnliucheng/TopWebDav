@@ -378,9 +378,12 @@ function renderRow(it) {
   const tdName = document.createElement("td");
   const wrap = document.createElement("div");
   wrap.className = "name-cell";
-  const mark = document.createElement("span");
-  mark.className = "mark " + (it.is_dir ? "folder" : "file");
+  const mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  mark.setAttribute("class", "row-icon " + (it.is_dir ? "is-dir" : "is-file"));
   mark.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", it.is_dir ? "#i-folder" : "#i-file");
+  mark.appendChild(use);
   wrap.appendChild(mark);
   if (it.is_dir) {
     const a = document.createElement("a");

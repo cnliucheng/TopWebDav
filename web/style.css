@@ -205,6 +205,7 @@ body {
   justify-content: center;
   gap: 6px;
   box-sizing: border-box;
+  text-decoration: none;
 }
 
 .btn:hover {
@@ -324,6 +325,21 @@ tbody tr:hover td {
 .col-time { width: 160px; }
 .col-act { width: 210px; }
 
+.row-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: block;
+}
+
+.row-icon.is-dir {
+  color: var(--accent);
+}
+
+.row-icon.is-file {
+  color: var(--muted);
+}
+
 .name-cell {
   display: flex;
   align-items: center;
@@ -351,69 +367,6 @@ tbody tr:hover td {
 
 .name-cell .file-name {
   color: var(--ink);
-}
-
-.mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  flex-shrink: 0;
-  position: relative;
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-border);
-}
-
-.mark.folder::before {
-  content: "";
-  position: absolute;
-  left: 7px;
-  right: 7px;
-  top: 9px;
-  bottom: 8px;
-  border: 1.5px solid var(--accent);
-  border-radius: 2px;
-  border-top: none;
-}
-
-.mark.folder::after {
-  content: "";
-  position: absolute;
-  left: 7px;
-  top: 7px;
-  width: 10px;
-  height: 4px;
-  border: 1.5px solid var(--accent);
-  border-bottom: none;
-  border-radius: 2px 2px 0 0;
-  background: var(--accent-soft);
-}
-
-.mark.file {
-  background: var(--surface-2);
-  border-color: var(--line);
-}
-
-.mark.file::before {
-  content: "";
-  position: absolute;
-  left: 9px;
-  right: 9px;
-  top: 7px;
-  bottom: 7px;
-  border: 1.5px solid var(--muted);
-  border-radius: 2px;
-}
-
-.mark.file::after {
-  content: "";
-  position: absolute;
-  left: 11px;
-  right: 11px;
-  top: 12px;
-  height: 1.5px;
-  background: var(--muted);
-  box-shadow: 0 4px 0 var(--muted);
-  opacity: 0.7;
 }
 
 .size, .time {
