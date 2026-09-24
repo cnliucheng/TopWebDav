@@ -354,7 +354,7 @@ async function tryLogin(user, pass) {
     if (e.status === 401) {
       showLoginError(t("badLogin"));
     } else {
-      showLoginError(e.message);
+      showLoginError(e.message || t("requestFail", { code: e.status || 0 }));
     }
     return false;
   }
@@ -363,20 +363,33 @@ async function tryLogin(user, pass) {
 function wireLogin() {
   const form = $("loginForm");
   if (!form) return;
+  let busy = false;
   form.addEventListener("submit", (e) => {
     e.preventDefault();
-    const user = $("loginUser").value.trim();
-    const pass = $("loginPass").value;
+    if (busy) return;
+    const userEl = $("loginUser");
+    const passEl = $("loginPass");
+    const user = ((userEl && userEl.value) || "").trim();
+    const pass = (passEl && passEl.value) || "";
     if (!user || !pass) {
       showLoginError(t("badLogin"));
       return;
     }
-    tryLogin(user, pass).then((ok) => {
-      if (ok) {
-        showAppView();
-        load().catch((err) => showError(err.message));
-      }
-    });
+    busy = true;
+    showLoginError("");
+    tryLogin(user, pass)
+      .then((ok) => {
+        if (ok) {
+          showAppView();
+          return load().catch((err) => showError(err.message));
+        }
+      })
+      .catch((err) => {
+        showLoginError((err && err.message) || "error");
+      })
+      .then(() => {
+        busy = false;
+      });
   });
 }
 
@@ -727,41 +740,47 @@ async function doLogout() {
 }
 
 function wire() {
-  $("btnUp").addEventListener("click", () => {
+  const bind = (id, fn) => {
+    const el = $(id);
+    if (el) el.addEventListener("click", fn);
+  };
+  bind("btnUp", () => {
     state.cur = parentPath(state.cur);
     load().catch((e) => showError(e.message));
   });
-  $("btnRefresh").addEventListener("click", () => {
+  bind("btnRefresh", () => {
     load().catch((e) => showError(e.message));
   });
-  $("btnUpload").addEventListener("click", () => {
+  bind("btnUpload", () => {
     doUpload().catch((e) => showError(e.message));
   });
-  $("btnMkdir").addEventListener("click", () => {
+  bind("btnMkdir", () => {
     doMkdir().catch((e) => showError(e.message));
   });
-  $("btnCreate").addEventListener("click", () => {
+  bind("btnCreate", () => {
     doCreate().catch((e) => showError(e.message));
   });
-  $("btnPassword").addEventListener("click", () => {
+  bind("btnPassword", () => {
     doChangePassword().catch((e) => showError(e.message));
   });
-  $("btnLogout").addEventListener("click", () => {
+  bind("btnLogout", () => {
     doLogout().catch((e) => showError(e.message));
   });
-  $("btnLang").addEventListener("click", () => {
+  bind("btnLang", () => {
     state.lang = state.lang === "en" ? "zh" : "en";
     localStorage.setItem("twd.lang", state.lang);
     applyI18n();
   });
-  $("btnTheme").addEventListener("click", () => {
+  bind("btnTheme", () => {
     const mode = resolveTheme();
     state.theme = mode === "dark" ? "light" : "dark";
     applyTheme();
   });
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-    if (state.theme === "auto") applyTheme();
-  });
+  if (window.matchMedia) {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+      if (state.theme === "auto") applyTheme();
+    });
+  }
 }
 
 async function boot() {
