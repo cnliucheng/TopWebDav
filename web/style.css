@@ -12,6 +12,8 @@
   --accent-hover: #047857;
   --accent-soft: #ecfdf5;
   --accent-border: #a7f3d0;
+  --on-accent: #ffffff;
+  --on-accent-hover: #ffffff;
   --danger: #dc2626;
   --danger-soft: #fef2f2;
   --danger-ink: #991b1b;
@@ -42,6 +44,8 @@
   --accent-hover: #10b981;
   --accent-soft: #052e22;
   --accent-border: #065f46;
+  --on-accent: #022c22;
+  --on-accent-hover: #022c22;
   --danger: #f87171;
   --danger-soft: #2a1212;
   --danger-ink: #fecaca;
@@ -184,9 +188,11 @@ body {
 }
 
 .btn {
+  appearance: none;
   font: inherit;
   font-weight: 500;
-  padding: 7px 12px;
+  height: 36px;
+  padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -196,11 +202,14 @@ body {
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  box-sizing: border-box;
 }
 
 .btn:hover {
   background: var(--surface-2);
+  color: var(--ink);
 }
 
 .btn:active {
@@ -210,16 +219,13 @@ body {
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #042f1e;
-}
-
-[data-theme="dark"] .btn.primary {
-  color: #022c22;
+  color: var(--on-accent);
 }
 
 .btn.primary:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
+  color: var(--on-accent-hover);
 }
 
 .btn.ghost {
@@ -234,11 +240,15 @@ body {
 }
 
 .btn.icon {
-  min-width: 34px;
-  height: 34px;
+  min-width: 36px;
+  height: 36px;
   padding: 0 8px;
   justify-content: center;
   color: var(--muted);
+}
+
+.btn.icon:hover {
+  color: var(--ink);
 }
 
 .btn.icon.ghost {
@@ -249,21 +259,23 @@ body {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
+  color: inherit;
+}
+
+.tools .btn,
+.top-actions .btn {
+  height: 36px;
 }
 
 .btn.sm {
-  padding: 4px 8px;
+  height: 28px;
+  padding: 0 8px;
   font-size: 12px;
   border-radius: 6px;
   color: var(--muted);
   background: transparent;
   border-color: transparent;
   gap: 4px;
-}
-
-.btn.sm .icon {
-  width: 13px;
-  height: 13px;
 }
 
 .btn.sm:hover {
