@@ -224,12 +224,22 @@ async function load() {
   for (const it of list) {
     tbody.appendChild(renderRow(it));
   }
+  const empty = $("emptyState");
+  const table = $("listing");
+  if (empty) empty.hidden = list.length > 0;
+  if (table) table.hidden = list.length === 0;
 }
 
 function renderRow(it) {
   const tr = document.createElement("tr");
 
   const tdName = document.createElement("td");
+  const wrap = document.createElement("div");
+  wrap.className = "name-cell";
+  const mark = document.createElement("span");
+  mark.className = "mark " + (it.is_dir ? "folder" : "file");
+  mark.setAttribute("aria-hidden", "true");
+  wrap.appendChild(mark);
   if (it.is_dir) {
     const a = document.createElement("a");
     a.className = "dir";
@@ -238,17 +248,23 @@ function renderRow(it) {
       state.cur = it.path;
       load().catch((e) => showError(e.message));
     });
-    tdName.appendChild(a);
+    wrap.appendChild(a);
   } else {
-    tdName.textContent = it.name;
+    const span = document.createElement("span");
+    span.className = "file-name";
+    span.textContent = it.name;
+    wrap.appendChild(span);
   }
+  tdName.appendChild(wrap);
   tr.appendChild(tdName);
 
   const tdSize = document.createElement("td");
-  tdSize.textContent = it.is_dir ? "-" : fmtSize(it.size);
+  tdSize.className = "size";
+  tdSize.textContent = it.is_dir ? "—" : fmtSize(it.size);
   tr.appendChild(tdSize);
 
   const tdTime = document.createElement("td");
+  tdTime.className = "time";
   tdTime.textContent = fmtTime(it.mod_time);
   tr.appendChild(tdTime);
 
@@ -256,14 +272,15 @@ function renderRow(it) {
   tdAct.className = "actions";
   const actions = [];
   if (!it.is_dir) {
-    actions.push(["下载", () => download(it.path, it.name)]);
-    actions.push(["编辑", () => openEdit(it.path)]);
+    actions.push(["下载", () => download(it.path, it.name), ""]);
+    actions.push(["编辑", () => openEdit(it.path), ""]);
   }
-  actions.push(["重命名", () => doRename(it)]);
-  actions.push(["删除", () => doDelete(it)]);
-  for (const [label, fn] of actions) {
+  actions.push(["重命名", () => doRename(it), ""]);
+  actions.push(["删除", () => doDelete(it), "danger"]);
+  for (const [label, fn, kind] of actions) {
     const b = document.createElement("button");
     b.type = "button";
+    b.className = "btn sm" + (kind ? " " + kind : "");
     b.textContent = label;
     b.addEventListener("click", () => {
       Promise.resolve(fn()).catch((e) => showError(e.message));

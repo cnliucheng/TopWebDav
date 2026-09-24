@@ -7,55 +7,102 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header>
-    <strong>TopWebDav</strong>
-    <nav>
-      <span id="pathLabel">/</span>
-      <button id="btnUp" type="button">上级</button>
-      <button id="btnRefresh" type="button">刷新</button>
-      <button id="btnUpload" type="button">上传</button>
-      <button id="btnMkdir" type="button">新建文件夹</button>
-      <button id="btnCreate" type="button">新建文件</button>
-      <button id="btnPassword" type="button">改密码</button>
-      <button id="btnLogout" type="button">退出</button>
-    </nav>
-  </header>
-  <div id="error" hidden></div>
-  <main>
-    <table id="listing">
-      <thead>
-        <tr><th>名称</th><th>大小</th><th>修改时间</th><th>操作</th></tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
-  </main>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div class="brand-text">
+          <strong>TopWebDav</strong>
+          <span>文件管理</span>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="btnPassword" type="button" class="btn ghost">改密码</button>
+        <button id="btnLogout" type="button" class="btn ghost">退出</button>
+      </div>
+    </header>
+
+    <div id="error" class="error" hidden></div>
+
+    <section class="toolbar card">
+      <div class="crumbs">
+        <button id="btnUp" type="button" class="btn icon" title="上级目录" aria-label="上级目录">↑</button>
+        <nav id="pathLabel" class="crumb-path" aria-label="当前路径">/</nav>
+      </div>
+      <div class="tools">
+        <button id="btnRefresh" type="button" class="btn">刷新</button>
+        <button id="btnMkdir" type="button" class="btn">新建文件夹</button>
+        <button id="btnCreate" type="button" class="btn">新建文件</button>
+        <button id="btnUpload" type="button" class="btn primary">上传</button>
+      </div>
+    </section>
+
+    <section class="panel card">
+      <table id="listing">
+        <thead>
+          <tr>
+            <th>名称</th>
+            <th class="col-size">大小</th>
+            <th class="col-time">修改时间</th>
+            <th class="col-act">操作</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="emptyState" class="empty" hidden>
+        <div class="empty-icon" aria-hidden="true"></div>
+        <p class="empty-title">这个目录是空的</p>
+        <p class="empty-sub">上传文件，或新建一个文件夹开始整理</p>
+      </div>
+    </section>
+  </div>
+
   <input id="fileInput" type="file" multiple hidden />
-  <dialog id="dlgEdit">
-    <h2 id="editTitle">编辑</h2>
-    <textarea id="editBody" rows="18" cols="72"></textarea>
-    <p>
-      <button id="editSave" type="button">保存</button>
-      <button id="editCancel" type="button">取消</button>
-    </p>
+
+  <dialog id="dlgEdit" class="dlg">
+    <form method="dialog" class="dlg-form">
+      <h2 id="editTitle">编辑</h2>
+      <textarea id="editBody" rows="16" spellcheck="false"></textarea>
+      <div class="dlg-actions">
+        <button id="editCancel" type="button" class="btn">取消</button>
+        <button id="editSave" type="button" class="btn primary">保存</button>
+      </div>
+    </form>
   </dialog>
-  <dialog id="dlgPrompt">
-    <h2 id="promptTitle">输入</h2>
-    <input id="promptValue" type="text" />
-    <input id="promptSecret" type="password" hidden />
-    <p>
-      <button id="promptOk" type="button">确定</button>
-      <button id="promptCancel" type="button">取消</button>
-    </p>
+
+  <dialog id="dlgPrompt" class="dlg">
+    <form method="dialog" class="dlg-form">
+      <h2 id="promptTitle">输入</h2>
+      <label class="field">
+        <span>内容</span>
+        <input id="promptValue" type="text" autocomplete="off" />
+        <input id="promptSecret" type="password" autocomplete="off" hidden />
+      </label>
+      <div class="dlg-actions">
+        <button id="promptCancel" type="button" class="btn">取消</button>
+        <button id="promptOk" type="button" class="btn primary">确定</button>
+      </div>
+    </form>
   </dialog>
-  <dialog id="dlgPassword">
-    <h2>修改密码</h2>
-    <p><label>旧密码 <input id="oldPw" type="password" /></label></p>
-    <p><label>新密码 <input id="newPw" type="password" /></label></p>
-    <p>
-      <button id="pwSave" type="button">保存</button>
-      <button id="pwCancel" type="button">取消</button>
-    </p>
+
+  <dialog id="dlgPassword" class="dlg">
+    <form method="dialog" class="dlg-form">
+      <h2>修改密码</h2>
+      <label class="field">
+        <span>旧密码</span>
+        <input id="oldPw" type="password" autocomplete="current-password" />
+      </label>
+      <label class="field">
+        <span>新密码</span>
+        <input id="newPw" type="password" autocomplete="new-password" />
+      </label>
+      <div class="dlg-actions">
+        <button id="pwCancel" type="button" class="btn">取消</button>
+        <button id="pwSave" type="button" class="btn primary">保存</button>
+      </div>
+    </form>
   </dialog>
+
   <script src="app.js"></script>
 </body>
 </html>
