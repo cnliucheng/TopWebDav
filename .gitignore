@@ -9,3 +9,6 @@
 .idea/
 .vscode/
 /topwebdav-linux-*
+
+# playwright local artifacts
+.playwright-cli/
