@@ -357,15 +357,56 @@ async function doMkdir() {
 
 async function doCreate() {
   showError("");
-  const name = await promptText("新建文件 — 名称");
-  if (name === null || name === "") return;
-  const path = joinPath(state.cur, name);
-  await api("api/create", {
-    method: "POST",
-    body: { path: path, content: "" },
+  const dlg = $("dlgCreate");
+  const nameEl = $("createName");
+  const bodyEl = $("createBody");
+  nameEl.value = "";
+  bodyEl.value = "";
+  await new Promise((resolve) => {
+    const onSave = async () => {
+      const name = nameEl.value.trim();
+      if (!name) {
+        showError("请填写文件名");
+        nameEl.focus();
+        return;
+      }
+      const path = joinPath(state.cur, name);
+      try {
+        await api("api/create", {
+          method: "POST",
+          body: { path: path, content: bodyEl.value },
+        });
+        cleanup();
+        dlg.close();
+        showError("");
+        resolve();
+      } catch (e) {
+        showError(e.message);
+      }
+    };
+    const onCancel = () => {
+      cleanup();
+      dlg.close();
+      resolve();
+    };
+    const onKey = (e) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        onSave();
+      }
+    };
+    function cleanup() {
+      $("createSave").removeEventListener("click", onSave);
+      $("createCancel").removeEventListener("click", onCancel);
+      dlg.removeEventListener("keydown", onKey);
+    }
+    $("createSave").addEventListener("click", onSave);
+    $("createCancel").addEventListener("click", onCancel);
+    dlg.addEventListener("keydown", onKey);
+    dlg.showModal();
+    nameEl.focus();
   });
   await load();
-  await openEdit(path);
 }
 
 async function doRename(it) {

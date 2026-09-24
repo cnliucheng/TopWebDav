@@ -464,8 +464,16 @@ tbody tr:hover td {
   font-size: 13px;
   line-height: 1.5;
   resize: vertical;
-  min-height: 280px;
+  min-height: 220px;
   width: 100%;
+}
+
+#dlgEdit .dlg-form textarea {
+  min-height: 280px;
+}
+
+#createName {
+  font-family: var(--mono);
 }
 
 .field input:focus,
