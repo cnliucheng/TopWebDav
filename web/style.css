@@ -60,6 +60,11 @@
 
 * { box-sizing: border-box; }
 
+/* Must win over component display (e.g. .login-view { display:flex }) */
+[hidden] {
+  display: none !important;
+}
+
 html, body { height: 100%; }
 
 body {
