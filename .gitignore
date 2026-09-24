@@ -1,0 +1,10 @@
+# runtime
+/data/
+/config.json
+/topwebdav
+*.log
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/
