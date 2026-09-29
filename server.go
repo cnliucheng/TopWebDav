@@ -10,10 +10,12 @@ import (
 
 // Server holds process-wide state for HTTP handlers.
 type Server struct {
-	cfg     *Config
-	cfgPath string
-	root    string
-	mu      sync.Mutex
+	cfg         *Config
+	cfgPath     string
+	root        string
+	mu          sync.Mutex
+	limiterOnce sync.Once
+	limiter     *authLimiter
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

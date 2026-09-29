@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func testServer(t *testing.T) *Server {
@@ -111,5 +112,59 @@ func TestChangePasswordTooLong(t *testing.T) {
 	s.handlePassword(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("code=%d want 400", rec.Code)
+	}
+}
+
+func TestAuthRateLimit(t *testing.T) {
+	s := testServer(t)
+	h := s.requireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	attempt := func(user, pass string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/dav/", nil)
+		req.SetBasicAuth(user, pass)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+
+	// Failures under the threshold stay at 401 and don't lock the good login.
+	for i := 0; i < authFailThreshold-1; i++ {
+		if c := attempt("admin", "wrong").Code; c != http.StatusUnauthorized {
+			t.Fatalf("pre-threshold fail %d: code=%d want 401", i, c)
+		}
+	}
+	if c := attempt("admin", "admin").Code; c != http.StatusNoContent {
+		t.Fatalf("pre-threshold good login code=%d want 204", c)
+	}
+
+	// The 5th consecutive failure starts the cooldown; further attempts get 429.
+	for i := 0; i < authFailThreshold; i++ {
+		if c := attempt("admin", "wrong").Code; c != http.StatusUnauthorized {
+			t.Fatalf("failure %d: code=%d want 401", i+1, c)
+		}
+	}
+	if c := attempt("admin", "wrong").Code; c != http.StatusTooManyRequests {
+		t.Fatalf("locked wrong login code=%d want 429", c)
+	}
+	// Even correct credentials wait out the cooldown (fail-fast before bcrypt),
+	// and the 429 advertises when to retry.
+	rec := attempt("admin", "admin")
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("locked good login code=%d want 429", rec.Code)
+	}
+	if rec.Header().Get("Retry-After") == "" {
+		t.Fatal("locked response must carry Retry-After")
+	}
+
+	// After the cooldown a good login works again and clears the counter.
+	s.limiter.now = func() time.Time { return time.Now().Add(2 * authFailMaxWait) }
+	if c := attempt("admin", "admin").Code; c != http.StatusNoContent {
+		t.Fatalf("post-cooldown good login code=%d want 204", c)
+	}
+	for i := 0; i < authFailThreshold-1; i++ {
+		if c := attempt("admin", "wrong").Code; c != http.StatusUnauthorized {
+			t.Fatalf("post-reset fail %d: code=%d want 401", i, c)
+		}
 	}
 }

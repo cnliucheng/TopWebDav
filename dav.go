@@ -10,8 +10,9 @@ import (
 // davHandler serves the data root as WebDAV at /dav/.
 func (s *Server) davHandler() http.Handler {
 	return &webdav.Handler{
-		Prefix:     "/dav/",
-		FileSystem: webdav.Dir(s.root),
+		Prefix: "/dav/",
+		// davFS (not webdav.Dir) so symlink escapes are rejected like /api/*.
+		FileSystem: davFS{root: s.root},
 		LockSystem: webdav.NewMemLS(),
 		Logger: func(r *http.Request, err error) {
 			if err != nil {
