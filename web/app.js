@@ -45,6 +45,8 @@ const I18N = {
     loginUserPh: "admin",
     loginPassPh: "••••••••",
     download: "下载",
+    uploading: "上传中",
+    downloading: "下载中",
     edit: "编辑",
     rename: "重命名",
     delete: "删除",
@@ -99,6 +101,8 @@ const I18N = {
     loginUserPh: "admin",
     loginPassPh: "••••••••",
     download: "Download",
+    uploading: "Uploading",
+    downloading: "Downloading",
     edit: "Edit",
     rename: "Rename",
     delete: "Delete",
@@ -269,6 +273,52 @@ function promptPassword(title, initial) {
   });
 }
 
+// unauthorized clears stored credentials and returns the 401 error both the
+// fetch-based api() and the XHR uploader throw.
+function unauthorized() {
+  state.auth = "";
+  sessionStorage.removeItem("twd.auth");
+  sessionStorage.removeItem("twd.user");
+  showLoginView();
+  const err = new Error(t("unauthorized"));
+  err.status = 401;
+  return err;
+}
+
+// progressShow / progressSet / progressHide drive the transfer toast.
+// kind: "upload" | "download"; sub: secondary line (file name / counter).
+// frac is 0..1, or null for an indeterminate (barber-pole) bar.
+function progressShow(kind, sub) {
+  const el = $("progress");
+  if (!el) return;
+  $("progressLabel").textContent = t(kind === "upload" ? "uploading" : "downloading");
+  const bar = $("progressBar");
+  bar.value = 0;
+  $("progressPct").textContent = "";
+  $("progressSub").textContent = sub || "";
+  el.hidden = false;
+}
+
+function progressSet(frac, sub) {
+  const bar = $("progressBar");
+  if (!bar) return;
+  if (frac == null || !isFinite(frac)) {
+    // Indeterminate: drop value so the browser animates the barber pole.
+    bar.removeAttribute("value");
+  } else {
+    if (!bar.hasAttribute("value")) bar.setAttribute("value", "0");
+    const v = Math.max(0, Math.min(1, frac));
+    bar.value = Math.round(v * 100);
+    $("progressPct").textContent = Math.round(v * 100) + "%";
+  }
+  if (sub != null) $("progressSub").textContent = sub;
+}
+
+function progressHide() {
+  const el = $("progress");
+  if (el) el.hidden = true;
+}
+
 async function api(pathname, opts) {
   // Relative "api/..." (no leading slash) so reverse-proxy subpaths work.
   const options = Object.assign({}, opts || {});
@@ -281,13 +331,7 @@ async function api(pathname, opts) {
   options.headers = headers;
   const res = await fetch(pathname, options);
   if (res.status === 401) {
-    state.auth = "";
-    sessionStorage.removeItem("twd.auth");
-    sessionStorage.removeItem("twd.user");
-    showLoginView();
-    const err = new Error(t("unauthorized"));
-    err.status = 401;
-    throw err;
+    throw unauthorized();
   }
   const ct = res.headers.get("Content-Type") || "";
   if (!res.ok) {
@@ -520,15 +564,47 @@ function renderRow(it) {
 async function download(path, name) {
   showError("");
   const res = await api("api/download?path=" + encodeURIComponent(path));
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name || baseName(path);
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  const fname = name || baseName(path);
+  const total = Number(res.headers.get("Content-Length")) || 0;
+  progressShow("download", fname);
+  try {
+    let blob;
+    if (res.body && res.body.getReader) {
+      // Read chunk by chunk so the bar tracks real bytes instead of
+      // silently buffering the whole file first.
+      const reader = res.body.getReader();
+      const chunks = [];
+      let loaded = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        loaded += value.length;
+        if (total > 0) {
+          progressSet(loaded / total, fname + " · " + fmtSize(loaded) + " / " + fmtSize(total));
+        } else {
+          progressSet(null, fname + " · " + fmtSize(loaded));
+        }
+      }
+      if (total > 0) progressSet(1, fname);
+      blob = new Blob(chunks);
+    } else {
+      // No ReadableStream: fall back to a whole-buffer download.
+      progressSet(null, fname);
+      blob = await res.blob();
+      progressSet(1, fname);
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } finally {
+    progressHide();
+  }
 }
 
 function openEdit(path) {
@@ -655,6 +731,39 @@ async function doDelete(it) {
   await load();
 }
 
+// uploadFile posts one multipart file with XHR: fetch exposes no upload
+// progress events, XHR's upload.onprogress does.
+function uploadFile(url, formData, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    if (state.auth) xhr.setRequestHeader("Authorization", "Basic " + state.auth);
+    xhr.upload.onprogress = (e) => {
+      onProgress(e.lengthComputable ? e.loaded / e.total : null);
+    };
+    xhr.onload = () => {
+      if (xhr.status === 401) {
+        reject(unauthorized());
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+        return;
+      }
+      let msg = t("requestFail", { code: xhr.status });
+      try {
+        const j = JSON.parse(xhr.responseText);
+        if (j && j.error) msg = j.error;
+      } catch (_) {}
+      const err = new Error(msg);
+      err.status = xhr.status;
+      reject(err);
+    };
+    xhr.onerror = () => reject(new Error(t("requestFail", { code: 0 })));
+    xhr.send(formData);
+  });
+}
+
 async function doUpload() {
   showError("");
   const input = $("fileInput");
@@ -665,13 +774,24 @@ async function doUpload() {
   });
   const files = input.files;
   if (!files || !files.length) return;
-  for (const file of files) {
-    const fd = new FormData();
-    fd.append("file", file, file.name);
-    await api("api/upload?path=" + encodeURIComponent(state.cur), {
-      method: "POST",
-      body: fd,
-    });
+  progressShow("upload", "1/" + files.length + " · " + files[0].name);
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const fd = new FormData();
+      fd.append("file", file, file.name);
+      const sub = (i + 1) + "/" + files.length + " · " + file.name;
+      const base = i / files.length;
+      const span = 1 / files.length;
+      await uploadFile(
+        "api/upload?path=" + encodeURIComponent(state.cur),
+        fd,
+        (frac) => progressSet(frac == null ? null : base + span * frac, sub)
+      );
+      progressSet((i + 1) / files.length, sub);
+    }
+  } finally {
+    progressHide();
   }
   await load();
 }

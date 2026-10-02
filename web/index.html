@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TopWebDav</title>
-  <link rel="stylesheet" href="style.css?v=2" />
+  <link rel="stylesheet" href="style.css?v=3" />
 </head>
 <body>
-  <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+  <svg xmlns="http://www.w3.org/2000/svg" class="svg-sprite" aria-hidden="true">
     <defs>
       <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -139,6 +139,15 @@
     </section>
   </div>
 
+  <div id="progress" class="progress" hidden aria-live="polite">
+    <div class="progress-head">
+      <span id="progressLabel" class="progress-label"></span>
+      <span id="progressPct" class="progress-pct"></span>
+    </div>
+    <progress id="progressBar" class="progress-bar" max="100" value="0"></progress>
+    <div id="progressSub" class="progress-sub"></div>
+  </div>
+
   <input id="fileInput" type="file" multiple hidden />
 
   <dialog id="dlgEdit" class="dlg">
@@ -203,6 +212,6 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
