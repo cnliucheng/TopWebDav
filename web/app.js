@@ -288,6 +288,7 @@ function unauthorized() {
 // progressShow / progressSet / progressHide drive the transfer toast.
 // kind: "upload" | "download"; sub: secondary line (file name / counter).
 // frac is 0..1, or null for an indeterminate (barber-pole) bar.
+let transferViewId = 0;
 function progressShow(kind, sub) {
   const el = $("progress");
   if (!el) return;
@@ -297,9 +298,11 @@ function progressShow(kind, sub) {
   $("progressPct").textContent = "";
   $("progressSub").textContent = sub || "";
   el.hidden = false;
+  return ++transferViewId;
 }
 
-function progressSet(frac, sub) {
+function progressSet(frac, sub, viewId) {
+  if (viewId != null && viewId !== transferViewId) return;
   const bar = $("progressBar");
   if (!bar) return;
   if (frac == null || !isFinite(frac)) {
@@ -314,7 +317,8 @@ function progressSet(frac, sub) {
   if (sub != null) $("progressSub").textContent = sub;
 }
 
-function progressHide() {
+function progressHide(viewId) {
+  if (viewId != null && viewId !== transferViewId) return;
   const el = $("progress");
   if (el) el.hidden = true;
 }
@@ -346,6 +350,7 @@ async function api(pathname, opts) {
     err.status = res.status;
     throw err;
   }
+  if (options.method === "HEAD") return res;
   if (ct.includes("application/json")) return res.json();
   return res;
 }
@@ -491,6 +496,7 @@ function renderRow(it) {
   const tr = document.createElement("tr");
 
   const tdName = document.createElement("td");
+  tdName.className = "file-cell";
   const wrap = document.createElement("div");
   wrap.className = "name-cell";
   const mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -561,12 +567,67 @@ function renderRow(it) {
   return tr;
 }
 
+async function nativeDownload(path, name) {
+  // Native downloads stream to the browser's download manager, including on
+  // mobile browsers without the File System Access API.
+  const data = await api("api/download-ticket", {
+    method: "POST",
+    body: { path },
+  });
+  const label = name || baseName(path);
+  const viewId = progressShow("download", label);
+  progressSet(0, label, viewId);
+  const a = document.createElement("a");
+  a.href = "api/download?ticket=" + encodeURIComponent(data.ticket);
+  a.download = label;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  trackNativeDownload(data.ticket, label, viewId).catch((e) => {
+    progressHide(viewId);
+    showError(e.message);
+  });
+}
+
+async function trackNativeDownload(ticket, label, viewId) {
+  // The server counts bytes written to the HTTP response. A proxy may buffer
+  // them, so this can finish before the browser has saved the last byte.
+  const startDeadline = Date.now() + 2 * 60 * 1000;
+  while (true) {
+    if (viewId !== transferViewId) return;
+    const status = await api("api/download-progress?ticket=" + encodeURIComponent(ticket));
+    if (viewId !== transferViewId) return;
+    if (!status.started && Date.now() >= startDeadline) break;
+    if (status.started) {
+      const sent = Math.max(0, Number(status.sent) || 0);
+      const total = Math.max(0, Number(status.total) || 0);
+      progressSet(total > 0 ? sent / total : null,
+        total > 0 ? label + " · " + fmtSize(sent) + " / " + fmtSize(total) : label, viewId);
+    }
+    if (status.done) {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      progressHide(viewId);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  progressHide(viewId);
+}
+
 async function download(path, name) {
   showError("");
-  const res = await api("api/download?path=" + encodeURIComponent(path));
+  const downloadPath = "api/download?path=" + encodeURIComponent(path);
+  const head = await api(downloadPath, { method: "HEAD" });
+  const size = Number(head.headers.get("Content-Length"));
+  if (!Number.isFinite(size) || size <= 0 || size > 64 * 1024 * 1024) {
+    await nativeDownload(path, name);
+    return;
+  }
+  const res = await api(downloadPath);
   const fname = name || baseName(path);
   const total = Number(res.headers.get("Content-Length")) || 0;
-  progressShow("download", fname);
+  const viewId = progressShow("download", fname);
+  let handedOff = false;
   try {
     let blob;
     if (res.body && res.body.getReader) {
@@ -580,19 +641,25 @@ async function download(path, name) {
         if (done) break;
         chunks.push(value);
         loaded += value.length;
+        if (loaded > 64 * 1024 * 1024) {
+          await reader.cancel();
+          await nativeDownload(path, name);
+          handedOff = true;
+          return;
+        }
         if (total > 0) {
-          progressSet(loaded / total, fname + " · " + fmtSize(loaded) + " / " + fmtSize(total));
+          progressSet(loaded / total, fname + " · " + fmtSize(loaded) + " / " + fmtSize(total), viewId);
         } else {
-          progressSet(null, fname + " · " + fmtSize(loaded));
+          progressSet(null, fname + " · " + fmtSize(loaded), viewId);
         }
       }
-      if (total > 0) progressSet(1, fname);
+      if (total > 0) progressSet(1, fname, viewId);
       blob = new Blob(chunks);
     } else {
       // No ReadableStream: fall back to a whole-buffer download.
-      progressSet(null, fname);
+      progressSet(null, fname, viewId);
       blob = await res.blob();
-      progressSet(1, fname);
+      progressSet(1, fname, viewId);
     }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -603,7 +670,7 @@ async function download(path, name) {
     a.remove();
     URL.revokeObjectURL(url);
   } finally {
-    progressHide();
+    if (!handedOff) progressHide(viewId);
   }
 }
 
@@ -774,7 +841,7 @@ async function doUpload() {
   });
   const files = input.files;
   if (!files || !files.length) return;
-  progressShow("upload", "1/" + files.length + " · " + files[0].name);
+  const viewId = progressShow("upload", "1/" + files.length + " · " + files[0].name);
   try {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -786,12 +853,12 @@ async function doUpload() {
       await uploadFile(
         "api/upload?path=" + encodeURIComponent(state.cur),
         fd,
-        (frac) => progressSet(frac == null ? null : base + span * frac, sub)
+        (frac) => progressSet(frac == null ? null : base + span * frac, sub, viewId)
       );
-      progressSet((i + 1) / files.length, sub);
+      progressSet((i + 1) / files.length, sub, viewId);
     }
   } finally {
-    progressHide();
+    progressHide(viewId);
   }
   await load();
 }
@@ -814,7 +881,7 @@ async function doChangePassword() {
           method: "POST",
           body: { old_password: oldPw, new_password: newPw },
         });
-        state.auth = toBasic(state.user, newPw);
+        saveAuth(state.user, toBasic(state.user, newPw));
         cleanup();
         dlg.close();
         showError(t("passwordChanged"));

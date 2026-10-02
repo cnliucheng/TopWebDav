@@ -14,6 +14,8 @@ type Server struct {
 	cfgPath     string
 	root        string
 	mu          sync.Mutex
+	downloadMu  sync.Mutex
+	downloads   map[string]downloadTicket
 	limiterOnce sync.Once
 	limiter     *authLimiter
 	pass        passCache
@@ -58,6 +60,8 @@ func (s *Server) routes() http.Handler {
 	api.HandleFunc("POST /api/create", s.handleCreate)
 	api.HandleFunc("POST /api/upload", s.handleUpload)
 	api.HandleFunc("GET /api/download", s.handleDownload)
+	api.HandleFunc("POST /api/download-ticket", s.handleDownloadTicket)
+	api.HandleFunc("GET /api/download-progress", s.handleDownloadProgress)
 	api.HandleFunc("GET /api/read", s.handleRead)
 	api.HandleFunc("POST /api/write", s.handleWrite)
 	api.HandleFunc("DELETE /api/delete", s.handleDelete)
@@ -67,6 +71,9 @@ func (s *Server) routes() http.Handler {
 		writeErr(w, http.StatusNotFound, "api not found")
 	})
 	mux.Handle("/api/", s.requireAuth(stripAPITrailingSlash(api)))
+	// The exact download route also accepts a short-lived bearer ticket so
+	// browsers can stream large files without buffering them in JavaScript.
+	mux.HandleFunc("GET /api/download", s.handleDownloadRoute)
 	mux.Handle("/dav/", s.requireAuth(s.davHandler()))
 	mux.Handle("/", http.FileServer(http.FS(mustWebFS())))
 	return withSecurityHeaders(mux)

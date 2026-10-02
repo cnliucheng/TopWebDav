@@ -321,6 +321,32 @@ func TestSymlinkListAndDelete(t *testing.T) {
 	}
 }
 
+func TestListOmitsEscapingSymlink(t *testing.T) {
+	s := testServer(t)
+	outside := filepath.Join(t.TempDir(), "secret.txt")
+	if err := os.WriteFile(outside, []byte("outside data root"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(s.root, "outside.txt")); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/list?path=/", nil)
+	rec := httptest.NewRecorder()
+	s.handleList(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var items []ListItem
+	if err := json.Unmarshal(rec.Body.Bytes(), &items); err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range items {
+		if item.Name == "outside.txt" {
+			t.Fatalf("escaping symlink appeared in listing: %+v", item)
+		}
+	}
+}
+
 func TestUploadSizeLimit(t *testing.T) {
 	s := testServer(t)
 	oneMB := 1

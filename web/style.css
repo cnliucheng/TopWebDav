@@ -648,10 +648,43 @@ tbody tr:hover td {
 }
 
 @media (max-width: 720px) {
-  .col-time { display: none; }
+  body { font-size: 16px; }
+  .app { padding: 16px 12px calc(32px + env(safe-area-inset-bottom)); }
+  .top-actions { flex-wrap: wrap; justify-content: flex-end; }
   .toolbar { align-items: stretch; }
   .tools { width: 100%; }
-  .tools .btn { flex: 1; justify-content: center; }
+  .tools .btn { flex: 1 1 auto; justify-content: center; }
+  .btn, .btn.icon, .tools .btn, .top-actions .btn { min-height: 44px; height: auto; }
+  .btn.sm { min-height: 44px; font-size: 14px; }
+  .field input { min-height: 44px; font-size: 16px; }
+  .dlg-form textarea { font-size: 16px; }
+  .field span { font-size: 14px; }
+  .login-card { padding: 22px 18px; }
+  .dlg { max-height: calc(100dvh - 32px); overflow: auto; }
+  .dlg-form { padding: 18px 16px; }
+  .panel table, .panel tbody, .panel tr, .panel td { display: block; }
+  .panel thead { display: none; }
+  .panel tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "name size" "actions actions";
+    gap: 8px;
+    padding: 12px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .panel tbody tr:last-child { border-bottom: none; }
+  .panel td { border: 0; padding: 0; min-width: 0; }
+  .panel .file-cell { grid-area: name; align-self: center; }
+  .panel .size { grid-area: size; align-self: center; font-size: 13px; }
+  .panel .time { display: none; }
+  .panel .actions {
+    grid-area: actions;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    text-align: left;
+  }
+  .actions .btn.sm { margin-left: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

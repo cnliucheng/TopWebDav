@@ -65,10 +65,18 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		// A symlink's DirEntry type never reports "dir", so resolve targets:
 		// otherwise symlinked folders show up as files and 404 on open.
 		if e.Type()&fs.ModeSymlink != 0 {
-			if tgt, serr := os.Stat(filepath.Join(full, e.Name())); serr == nil {
-				info = tgt
-				isDir = tgt.IsDir()
+			// Check containment before following the link. A pre-existing link
+			// outside the data root must not expose its target's metadata.
+			target, serr := ResolveUnder(s.root, p)
+			if serr != nil {
+				continue
 			}
+			tgt, serr := os.Stat(target)
+			if serr != nil {
+				continue
+			}
+			info = tgt
+			isDir = tgt.IsDir()
 		}
 		items = append(items, ListItem{
 			Name:    e.Name(),
@@ -307,11 +315,15 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	full, err := ResolveUnder(s.root, r.URL.Query().Get("path"))
+	s.serveDownload(w, r, r.URL.Query().Get("path"))
+}
+
+func (s *Server) serveDownload(w http.ResponseWriter, r *http.Request, filePath string) {
+	full, err := ResolveUnder(s.root, filePath)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad path")
 		return
@@ -326,6 +338,8 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		cd = "attachment"
 	}
 	w.Header().Set("Content-Disposition", cd)
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
 	http.ServeFile(w, r, full)
 }
 
