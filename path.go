@@ -104,16 +104,12 @@ func ResolveUnder(root, p string) (string, error) {
 // The root path ("/") never resolves to a link, so root-refusal checks
 // keep working when data_dir itself is a symlink.
 func ResolveEntry(root, p string) (string, error) {
-	full, err := ResolveUnder(root, p)
-	if err != nil {
-		return "", err
-	}
 	clean, err := SanitizePath(p)
 	if err != nil {
 		return "", err
 	}
 	if clean == "/" {
-		return full, nil
+		return ResolveUnder(root, p)
 	}
 	rootAbs, err := filepath.Abs(root)
 	if err != nil {
@@ -121,9 +117,23 @@ func ResolveEntry(root, p string) (string, error) {
 	}
 	entry := filepath.Join(rootAbs, filepath.FromSlash(strings.TrimPrefix(clean, "/")))
 	if fi, err := os.Lstat(entry); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		// Final component is a symlink: act on the link itself. The link's
+		// target must stay inside root when it exists — an escaping link is
+		// not touchable through the app. A broken link has no reachable
+		// target, is inert, and must stay removable; that is only allowed
+		// when its parent directory is inside root too, because entry still
+		// traverses the parent, which could itself be an escaping link.
+		if _, err := ResolveUnder(root, clean); err != nil {
+			if _, serr := os.Stat(entry); serr == nil || !os.IsNotExist(serr) {
+				return "", err
+			}
+			if _, perr := ResolveUnder(root, path.Dir(clean)); perr != nil {
+				return "", err
+			}
+		}
 		return entry, nil
 	}
-	return full, nil
+	return ResolveUnder(root, clean)
 }
 
 // ValidName checks a single path segment (file or folder name).

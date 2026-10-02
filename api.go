@@ -66,17 +66,20 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		// otherwise symlinked folders show up as files and 404 on open.
 		if e.Type()&fs.ModeSymlink != 0 {
 			// Check containment before following the link. A pre-existing link
-			// outside the data root must not expose its target's metadata.
+			// outside the data root must not expose its target's metadata, so
+			// it is hidden. A broken link has nothing to resolve — keep it
+			// visible (as a plain entry) so it can still be deleted.
 			target, serr := ResolveUnder(s.root, p)
 			if serr != nil {
+				if _, lerr := os.Stat(filepath.Join(full, e.Name())); lerr == nil || !os.IsNotExist(lerr) {
+					continue
+				}
+			} else if tgt, terr := os.Stat(target); terr == nil {
+				info = tgt
+				isDir = tgt.IsDir()
+			} else if !os.IsNotExist(terr) {
 				continue
 			}
-			tgt, serr := os.Stat(target)
-			if serr != nil {
-				continue
-			}
-			info = tgt
-			isDir = tgt.IsDir()
 		}
 		items = append(items, ListItem{
 			Name:    e.Name(),
@@ -216,7 +219,9 @@ func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad name")
 		return
 	}
-	if _, err := os.Stat(src); err != nil {
+	// Lstat: with entry semantics the source may be a dangling link, whose
+	// existence is the link itself, not its missing target.
+	if _, err := os.Lstat(src); err != nil {
 		writeErr(w, http.StatusNotFound, "not found")
 		return
 	}

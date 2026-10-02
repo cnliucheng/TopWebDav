@@ -168,6 +168,17 @@ func TestDavFSRemoveAllSymlink(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "docs", "keep.txt")); err != nil {
 		t.Fatalf("target after rename: %v", err)
 	}
+
+	// Dangling links are removable as well.
+	if err := os.Symlink(filepath.Join(root, "gone"), filepath.Join(root, "dangling")); err != nil {
+		t.Fatal(err)
+	}
+	if err := fs.RemoveAll(ctx, "/dangling"); err != nil {
+		t.Fatalf("removeall dangling: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(root, "dangling")); !os.IsNotExist(err) {
+		t.Fatalf("dangling link still present, err=%v", err)
+	}
 }
 
 func TestDavHandlerBlocksEscapeOverHTTP(t *testing.T) {

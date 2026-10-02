@@ -321,6 +321,67 @@ func TestSymlinkListAndDelete(t *testing.T) {
 	}
 }
 
+func TestBrokenSymlinkVisibleAndDeletable(t *testing.T) {
+	s := testServer(t)
+
+	// A dangling link (target removed) must stay visible as a plain entry...
+	if err := os.Symlink(filepath.Join(s.root, "gone.txt"), filepath.Join(s.root, "dangling.txt")); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/list?path=/", nil)
+	rec := httptest.NewRecorder()
+	s.handleList(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var items []ListItem
+	if err := json.Unmarshal(rec.Body.Bytes(), &items); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, it := range items {
+		if it.Name == "dangling.txt" {
+			found = true
+			if it.IsDir {
+				t.Fatal("dangling link must not read as a directory")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("dangling link missing from listing")
+	}
+
+	// ...and removable.
+	req = httptest.NewRequest(http.MethodDelete, "/api/delete?path=/dangling.txt", nil)
+	rec = httptest.NewRecorder()
+	s.handleDelete(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delete dangling code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Lstat(filepath.Join(s.root, "dangling.txt")); !os.IsNotExist(err) {
+		t.Fatalf("dangling link still present, err=%v", err)
+	}
+
+	// A dangling link reached through an escaping parent stays untouchable:
+	// the entry path still traverses the parent link.
+	outside := t.TempDir()
+	if err := os.Symlink(filepath.Join(outside, "no-such"), filepath.Join(outside, "broken")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(s.root, "dirlink")); err != nil {
+		t.Fatal(err)
+	}
+	req = httptest.NewRequest(http.MethodDelete, "/api/delete?path=/dirlink/broken", nil)
+	rec = httptest.NewRecorder()
+	s.handleDelete(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("delete through escaping parent code=%d want 400", rec.Code)
+	}
+	if _, err := os.Lstat(filepath.Join(outside, "broken")); err != nil {
+		t.Fatalf("outside entry touched: %v", err)
+	}
+}
+
 func TestListOmitsEscapingSymlink(t *testing.T) {
 	s := testServer(t)
 	outside := filepath.Join(t.TempDir(), "secret.txt")
