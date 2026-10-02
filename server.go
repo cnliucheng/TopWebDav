@@ -16,6 +16,26 @@ type Server struct {
 	mu          sync.Mutex
 	limiterOnce sync.Once
 	limiter     *authLimiter
+	pass        passCache
+}
+
+const defaultMaxUploadMB = 4096
+
+// maxUploadBytes bounds one upload request (multipart POST or WebDAV
+// PUT/POST). An absent config value falls back to defaultMaxUploadMB so
+// existing deployments gain a limit without editing config.json; an explicit
+// 0 (or negative) means unlimited.
+func (s *Server) maxUploadBytes() int64 {
+	s.mu.Lock()
+	v := s.cfg.MaxUploadMB
+	s.mu.Unlock()
+	if v == nil {
+		return defaultMaxUploadMB << 20
+	}
+	if *v <= 0 {
+		return 0
+	}
+	return int64(*v) << 20
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -49,7 +69,26 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("/api/", s.requireAuth(stripAPITrailingSlash(api)))
 	mux.Handle("/dav/", s.requireAuth(s.davHandler()))
 	mux.Handle("/", http.FileServer(http.FS(mustWebFS())))
-	return mux
+	return withSecurityHeaders(mux)
+}
+
+// contentSecurityPolicy locks the origin down to its own resources. The app
+// has no inline scripts/styles (the SVG sprite's positioning lives in
+// style.css so this can stay strict) and loads nothing from other origins,
+// except the GitHub links, which are navigations rather than subresources.
+const contentSecurityPolicy = "default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'"
+
+// withSecurityHeaders sets clickjacking/mime-sniffing/referrer protections on
+// every response — static UI, API and WebDAV alike.
+func withSecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Referrer-Policy", "same-origin")
+		h.Set("Content-Security-Policy", contentSecurityPolicy)
+		next.ServeHTTP(w, r)
+	})
 }
 
 // stripAPITrailingSlash turns /api/list/ into /api/list so proxies and

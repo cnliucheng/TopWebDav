@@ -61,10 +61,19 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		if rel == "/" {
 			p = "/" + e.Name()
 		}
+		isDir := e.IsDir()
+		// A symlink's DirEntry type never reports "dir", so resolve targets:
+		// otherwise symlinked folders show up as files and 404 on open.
+		if e.Type()&fs.ModeSymlink != 0 {
+			if tgt, serr := os.Stat(filepath.Join(full, e.Name())); serr == nil {
+				info = tgt
+				isDir = tgt.IsDir()
+			}
+		}
 		items = append(items, ListItem{
 			Name:    e.Name(),
 			Path:    p,
-			IsDir:   e.IsDir(),
+			IsDir:   isDir,
 			Size:    info.Size(),
 			ModTime: info.ModTime().UTC(),
 		})
@@ -132,7 +141,8 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	full, err := ResolveUnder(s.root, r.URL.Query().Get("path"))
+	// Entry semantics: deleting a symlink removes the link, never its target.
+	full, err := ResolveEntry(s.root, r.URL.Query().Get("path"))
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad path")
 		return
@@ -146,7 +156,9 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "refusing to delete root")
 		return
 	}
-	fi, err := os.Stat(full)
+	// Lstat, not Stat: the operation removes the entry itself, so deleting a
+	// symlink must not depend on whether its *target* is a non-empty dir.
+	fi, err := os.Lstat(full)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "not found")
 		return
@@ -180,12 +192,14 @@ func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad json")
 		return
 	}
-	src, err := ResolveUnder(s.root, body.From)
+	// Entry semantics on both sides: renaming a symlink moves the link, not
+	// the file it points at.
+	src, err := ResolveEntry(s.root, body.From)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad from")
 		return
 	}
-	dst, err := ResolveUnder(s.root, body.To)
+	dst, err := ResolveEntry(s.root, body.To)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad to")
 		return
@@ -233,6 +247,11 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	// ParseMultipartForm's 32MiB argument is only the in-memory threshold,
+	// not a total cap — bound the whole body so it cannot fill the disk.
+	if n := s.maxUploadBytes(); n > 0 {
+		r.Body = http.MaxBytesReader(w, r.Body, n)
+	}
 	dirRel := r.URL.Query().Get("path")
 	if dirRel == "" {
 		dirRel = "/"
@@ -243,6 +262,11 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeErr(w, http.StatusRequestEntityTooLarge, "file too large")
+			return
+		}
 		writeErr(w, http.StatusBadRequest, "bad multipart")
 		return
 	}

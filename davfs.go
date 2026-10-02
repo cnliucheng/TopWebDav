@@ -29,6 +29,18 @@ func (d davFS) resolve(name string) (string, error) {
 	return full, nil
 }
 
+// resolveEntry addresses the final path component itself when it is a
+// symlink (POSIX remove/rename semantics), so DELETE and MOVE act on the
+// link instead of dragging its target around. Containment of the target is
+// still checked by ResolveEntry.
+func (d davFS) resolveEntry(name string) (string, error) {
+	full, err := ResolveEntry(d.root, name)
+	if err != nil {
+		return "", os.ErrNotExist
+	}
+	return full, nil
+}
+
 func (d davFS) rootPath() (string, error) {
 	full, err := ResolveUnder(d.root, "/")
 	if err != nil {
@@ -54,7 +66,7 @@ func (d davFS) OpenFile(ctx context.Context, name string, flag int, perm os.File
 }
 
 func (d davFS) RemoveAll(ctx context.Context, name string) error {
-	full, err := d.resolve(name)
+	full, err := d.resolveEntry(name)
 	if err != nil {
 		return err
 	}
@@ -70,11 +82,11 @@ func (d davFS) RemoveAll(ctx context.Context, name string) error {
 }
 
 func (d davFS) Rename(ctx context.Context, oldName, newName string) error {
-	src, err := d.resolve(oldName)
+	src, err := d.resolveEntry(oldName)
 	if err != nil {
 		return err
 	}
-	dst, err := d.resolve(newName)
+	dst, err := d.resolveEntry(newName)
 	if err != nil {
 		return err
 	}

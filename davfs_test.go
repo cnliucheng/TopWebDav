@@ -127,6 +127,49 @@ func TestDavFSRejectsSymlinkEscape(t *testing.T) {
 	}
 }
 
+func TestDavFSRemoveAllSymlink(t *testing.T) {
+	root := t.TempDir()
+	fs := davFS{root: root}
+	ctx := context.Background()
+
+	if err := os.Mkdir(filepath.Join(root, "docs"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "docs", "keep.txt"), []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "docs"), filepath.Join(root, "docslink")); err != nil {
+		t.Fatal(err)
+	}
+
+	// DELETE on the link must remove the link only — not drag its
+	// non-empty target away the way a resolved path would.
+	if err := fs.RemoveAll(ctx, "/docslink"); err != nil {
+		t.Fatalf("removeall symlink: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(root, "docslink")); !os.IsNotExist(err) {
+		t.Fatalf("symlink still present, err=%v", err)
+	}
+	if b, err := os.ReadFile(filepath.Join(root, "docs", "keep.txt")); err != nil || string(b) != "keep" {
+		t.Fatalf("target disturbed: %q err=%v", b, err)
+	}
+
+	// MOVE on a symlink moves the link itself too.
+	if err := os.Symlink(filepath.Join(root, "docs"), filepath.Join(root, "again")); err != nil {
+		t.Fatal(err)
+	}
+	if err := fs.Rename(ctx, "/again", "/moved"); err != nil {
+		t.Fatalf("rename symlink: %v", err)
+	}
+	fi, err := os.Lstat(filepath.Join(root, "moved"))
+	if err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("moved entry should be the symlink, err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "docs", "keep.txt")); err != nil {
+		t.Fatalf("target after rename: %v", err)
+	}
+}
+
 func TestDavHandlerBlocksEscapeOverHTTP(t *testing.T) {
 	s := testServer(t)
 	outside := t.TempDir()

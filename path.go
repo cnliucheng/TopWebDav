@@ -95,6 +95,37 @@ func ResolveUnder(root, p string) (string, error) {
 	return realPathUnder(realRoot, full)
 }
 
+// ResolveEntry is ResolveUnder with one difference: when the final path
+// component is a symlink, the link itself is returned rather than its
+// target — while still verifying that the target stays inside root. This
+// matches how rm and rename(2) treat their operands: they act on the
+// directory entry, not on what it points at. Read-style operations
+// (open, stat, read) should keep using ResolveUnder, which follows links.
+// The root path ("/") never resolves to a link, so root-refusal checks
+// keep working when data_dir itself is a symlink.
+func ResolveEntry(root, p string) (string, error) {
+	full, err := ResolveUnder(root, p)
+	if err != nil {
+		return "", err
+	}
+	clean, err := SanitizePath(p)
+	if err != nil {
+		return "", err
+	}
+	if clean == "/" {
+		return full, nil
+	}
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return "", err
+	}
+	entry := filepath.Join(rootAbs, filepath.FromSlash(strings.TrimPrefix(clean, "/")))
+	if fi, err := os.Lstat(entry); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		return entry, nil
+	}
+	return full, nil
+}
+
 // ValidName checks a single path segment (file or folder name).
 func ValidName(name string) error {
 	if name == "" || name == "." || name == ".." {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -115,6 +116,41 @@ func TestChangePasswordTooLong(t *testing.T) {
 	}
 }
 
+func TestPasswordBodyLimit(t *testing.T) {
+	s := testServer(t)
+	// The endpoint's body cap is tiny; an oversized one is a clean 413.
+	huge := `{"old_password":"` + strings.Repeat("x", 16<<10) + `","new_password":"abcd"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/password", strings.NewReader(huge))
+	req.SetBasicAuth("admin", "admin")
+	rec := httptest.NewRecorder()
+	s.handlePassword(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversize body code=%d want 413", rec.Code)
+	}
+}
+
+func TestAuthLimiterBounded(t *testing.T) {
+	l := newAuthLimiter()
+	// Fill the table with IPs that are all mid-cooldown (nothing the expired
+	// sweep can reclaim), then keep failing from fresh IPs: the table must
+	// not grow past its cap no matter how many source addresses appear.
+	for i := 0; i < authFailMaxTracked; i++ {
+		ip := fmt.Sprintf("10.1.%d.%d", i/256, i%256)
+		for j := 0; j < authFailThreshold; j++ {
+			l.fail(ip)
+		}
+	}
+	for i := 0; i < 100; i++ {
+		l.fail(fmt.Sprintf("10.9.%d.%d", i/256, i%256))
+	}
+	l.mu.Lock()
+	n := len(l.fails)
+	l.mu.Unlock()
+	if n > authFailMaxTracked {
+		t.Fatalf("tracked IPs = %d, want <= %d", n, authFailMaxTracked)
+	}
+}
+
 func TestAuthRateLimit(t *testing.T) {
 	s := testServer(t)
 	h := s.requireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -144,20 +180,31 @@ func TestAuthRateLimit(t *testing.T) {
 			t.Fatalf("failure %d: code=%d want 401", i+1, c)
 		}
 	}
-	if c := attempt("admin", "wrong").Code; c != http.StatusTooManyRequests {
-		t.Fatalf("locked wrong login code=%d want 429", c)
-	}
-	// Even correct credentials wait out the cooldown (fail-fast before bcrypt),
-	// and the 429 advertises when to retry.
-	rec := attempt("admin", "admin")
+	rec := attempt("admin", "wrong")
 	if rec.Code != http.StatusTooManyRequests {
-		t.Fatalf("locked good login code=%d want 429", rec.Code)
+		t.Fatalf("locked wrong login code=%d want 429", rec.Code)
 	}
 	if rec.Header().Get("Retry-After") == "" {
 		t.Fatal("locked response must carry Retry-After")
 	}
 
-	// After the cooldown a good login works again and clears the counter.
+	// The wrong attempt above consumed this IP's verification window, so an
+	// immediate retry is throttled (429) rather than spending bcrypt...
+	rec = attempt("admin", "admin")
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("throttled good login code=%d want 429", rec.Code)
+	}
+	if rec.Header().Get("Retry-After") == "" {
+		t.Fatal("throttled response must carry Retry-After")
+	}
+	// ...but once the window reopens a correct password must get through the
+	// lockout: a cooldown may delay the real user, never lock them out.
+	s.limiter.now = func() time.Time { return time.Now().Add(authVerifyInterval + time.Second) }
+	if c := attempt("admin", "admin").Code; c != http.StatusNoContent {
+		t.Fatalf("cooling good login code=%d want 204", c)
+	}
+
+	// The success above cleared the counter; a fresh round behaves the same.
 	s.limiter.now = func() time.Time { return time.Now().Add(2 * authFailMaxWait) }
 	if c := attempt("admin", "admin").Code; c != http.StatusNoContent {
 		t.Fatalf("post-cooldown good login code=%d want 204", c)
@@ -166,5 +213,55 @@ func TestAuthRateLimit(t *testing.T) {
 		if c := attempt("admin", "wrong").Code; c != http.StatusUnauthorized {
 			t.Fatalf("post-reset fail %d: code=%d want 401", i, c)
 		}
+	}
+}
+
+func TestAuthPasswordCache(t *testing.T) {
+	s := testServer(t)
+	h := s.requireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	attempt := func(user, pass string) int {
+		req := httptest.NewRequest(http.MethodGet, "/dav/", nil)
+		req.SetBasicAuth(user, pass)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	if c := attempt("admin", "admin"); c != http.StatusNoContent {
+		t.Fatalf("first login code=%d want 204", c)
+	}
+	s.pass.mu.Lock()
+	cached := s.pass.hash
+	s.pass.mu.Unlock()
+	if cached == "" {
+		t.Fatal("successful login must populate the password cache")
+	}
+	// Repeated logins keep working (these are the cache hits).
+	for i := 0; i < 3; i++ {
+		if c := attempt("admin", "admin"); c != http.StatusNoContent {
+			t.Fatalf("repeat login %d code=%d want 204", i, c)
+		}
+	}
+	// Only successes are cached: a wrong password is never admitted.
+	if c := attempt("admin", "nope"); c != http.StatusUnauthorized {
+		t.Fatalf("wrong password code=%d want 401", c)
+	}
+
+	// A password change invalidates the cached verdict.
+	body := strings.NewReader(`{"old_password":"admin","new_password":"newpass1"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/password", body)
+	req.SetBasicAuth("admin", "admin")
+	rec := httptest.NewRecorder()
+	s.handlePassword(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("password change code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if c := attempt("admin", "admin"); c != http.StatusUnauthorized {
+		t.Fatalf("old password after change code=%d want 401", c)
+	}
+	if c := attempt("admin", "newpass1"); c != http.StatusNoContent {
+		t.Fatalf("new password code=%d want 204", c)
 	}
 }

@@ -15,6 +15,9 @@ type Config struct {
 	DataDir      string `json:"data_dir"`
 	Username     string `json:"username"`
 	PasswordHash string `json:"password_hash"`
+	// MaxUploadMB caps a single upload (multipart POST or WebDAV write) in
+	// MiB. Absent (nil) means the built-in default; 0 means unlimited.
+	MaxUploadMB *int `json:"max_upload_mb,omitempty"`
 }
 
 // LoadOrCreate reads cfgPath, or creates a default admin/admin config and data dir.
