@@ -181,6 +181,58 @@ func TestDavFSRemoveAllSymlink(t *testing.T) {
 	}
 }
 
+func TestDavBrowserGetsMountHint(t *testing.T) {
+	s := testServer(t)
+	if err := os.WriteFile(filepath.Join(s.root, "ok.txt"), []byte("fine"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	mux := s.routes()
+
+	get := func(path string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.SetBasicAuth("admin", "admin")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		return rec
+	}
+
+	// Browser GET on a collection: the mount-hints page, not a bare 405.
+	rec := get("/dav/")
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "WebDAV") {
+		t.Fatalf("hint code=%d body=%.120s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "text/html") {
+		t.Fatalf("content-type=%q want html", ct)
+	}
+	// Unauthenticated GET still challenges first.
+	req := httptest.NewRequest(http.MethodGet, "/dav/", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauth GET code=%d want 401", rec.Code)
+	}
+	// Files still stream from the WebDAV handler unchanged.
+	if rec := get("/dav/ok.txt"); rec.Code != http.StatusOK || rec.Body.String() != "fine" {
+		t.Fatalf("file GET code=%d body=%q", rec.Code, rec.Body.String())
+	}
+	// WebDAV methods are untouched.
+	req = httptest.NewRequest("PROPFIND", "/dav/", nil)
+	req.SetBasicAuth("admin", "admin")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusMultiStatus {
+		t.Fatalf("PROPFIND code=%d want 207", rec.Code)
+	}
+	// The page's stylesheet resolves from the embedded FS (CSP: no inline CSS).
+	req = httptest.NewRequest(http.MethodGet, "/dav-hint.css", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Header().Get("Content-Type"), "text/css") {
+		t.Fatalf("css code=%d ct=%q", rec.Code, rec.Header().Get("Content-Type"))
+	}
+}
+
 func TestDavHandlerBlocksEscapeOverHTTP(t *testing.T) {
 	s := testServer(t)
 	outside := t.TempDir()

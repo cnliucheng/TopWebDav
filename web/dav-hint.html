@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebDAV · TopWebDav</title>
+  <link rel="stylesheet" href="../dav-hint.css?v=1" />
+</head>
+<body>
+  <main class="card">
+    <h1>WebDAV 端点</h1>
+    <p class="lead">这里是 WebDAV 服务地址，供客户端挂载和同步使用，不是文件浏览页面。</p>
+    <p class="lead en">This is the WebDAV endpoint for clients — not a file browser.</p>
+
+    <h2>挂载方式 / Mounting</h2>
+    <ul>
+      <li><strong>rclone</strong>：类型 <code>webdav</code>，URL 填 <code>&lt;本站地址&gt;/dav</code>，账号密码与网页登录相同</li>
+      <li><strong>macOS Finder</strong>：菜单「前往 → 连接服务器」（⌘K），输入 <code>http://地址:端口/dav</code>，连接后选择「注册的身份」登录</li>
+      <li><strong>Windows 资源管理器</strong>：此电脑 → 右键 → 「映射网络驱动器」或「添加网络位置」，地址填 <code>http://地址:端口/dav</code></li>
+      <li><strong>Cyberduck / RaiDrive 等</strong>：协议选 WebDAV，服务器地址同上</li>
+    </ul>
+
+    <h2>其他入口 / Elsewhere</h2>
+    <ul>
+      <li>网页文件管理：<a href="../">返回首页</a></li>
+      <li>直接访问文件：浏览器打开 <code>/dav/路径/文件名</code> 可直接查看或下载单个文件</li>
+    </ul>
+
+    <p class="foot">账号密码与网页登录相同；网页端修改密码后，已挂载的客户端需更新密码。</p>
+  </main>
+</body>
+</html>

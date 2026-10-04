@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"strings"
 
 	"golang.org/x/net/webdav"
 )
@@ -26,6 +28,26 @@ func (s *Server) davHandler() http.Handler {
 		if n := s.maxUploadBytes(); n > 0 {
 			r.Body = http.MaxBytesReader(w, r.Body, n)
 		}
+		// A browser GET/HEAD on a collection gets a mount-instructions page
+		// instead of the library's bare 405. Only directory GETs are
+		// intercepted: WebDAV methods and file GETs pass through untouched.
+		if (r.Method == http.MethodGet || r.Method == http.MethodHead) && s.isDavCollection(r.URL.Path) {
+			http.ServeFileFS(w, r, mustWebFS(), "dav-hint.html")
+			return
+		}
 		inner.ServeHTTP(w, r)
 	})
+}
+
+// isDavCollection reports whether urlPath names a directory under the data
+// root once the /dav/ prefix is stripped. Unresolvable paths (escapes,
+// missing entries, broken links) return false so the WebDAV handler keeps
+// producing its usual 404s.
+func (s *Server) isDavCollection(urlPath string) bool {
+	full, err := ResolveUnder(s.root, strings.TrimPrefix(urlPath, "/dav/"))
+	if err != nil {
+		return false
+	}
+	fi, err := os.Stat(full)
+	return err == nil && fi.IsDir()
 }

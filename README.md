@@ -182,6 +182,8 @@ download.go
 web/index.html
 web/style.css
 web/app.js
+web/dav-hint.html
+web/dav-hint.css
 ```
 
 **不要上传**：`docs/`、`deploy/`、`.git/`、`data/`、本机的 `config.json`（服务器首次运行会生成）。
@@ -197,6 +199,8 @@ rclone config
 # 或
 cadaver https://你的域名/dav/
 ```
+
+在浏览器里直接打开 `/dav/` 会先要求认证，随后显示一个挂载说明页（浏览器只会发 GET，无法列目录，所以不做文件浏览；单个文件仍可通过 `/dav/路径/文件名` 直接打开）。
 
 ## 配置说明
 
